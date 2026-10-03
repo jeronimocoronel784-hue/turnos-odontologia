@@ -13,7 +13,9 @@ __pycache__/
 
 # Frontend
 node_modules/
+src/node_modules/
 dist/
+src/dist/
 *.local
 
 # OpenSpec efímero

@@ -6,8 +6,14 @@ skipear lo que sea específico de Postgres (GRANTs de auditoría).
 """
 
 import os
+import sys
 import uuid
 from collections.abc import AsyncGenerator
+from pathlib import Path
+
+# El package `app` vive en src/ (repo mudado a layout src/ + tests/).
+# Esto permite `pytest tests` desde la raíz sin instalación editable.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest
 import pytest_asyncio

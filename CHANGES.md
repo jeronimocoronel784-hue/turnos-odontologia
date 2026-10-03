@@ -111,9 +111,9 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ### [C-01] `foundation-setup`
 - **Estado**: `[x]` implementado en ciclo 1 — change `c-01-foundation-core-models` (archivada en `openspec/changes/archive/2026-10-03-c-01-foundation-core-models/`, specs en `openspec/specs/foundation-setup/spec.md`). Cubre C-01 + C-02 juntos.
 - **Scope**: Scaffolding completo del monorepo + infraestructura base
-  - Estructura `backend/app/{domain,application,infrastructure,api,workers,tests}` + `frontend/src/{features,shared,pages}` según `08_arquitectura_propuesta.md` §Estructura
-  - `backend/`: FastAPI app mínima con `GET /api/health`, SQLAlchemy + Alembic inicializado, `shared/` con settings (Pydantic), logger, db session, exceptions con mensajes en rioplatense (RN-GL-02)
-  - `frontend/`: Vite + React + TypeScript + PWA base (manifest + service worker vacío), React Router, TanStack Query, Tailwind
+  - Estructura `src/app/{domain,application,infrastructure,api,workers}` + `tests/` + `src/src/{features,shared,pages}` según `08_arquitectura_propuesta.md` §Estructura (layout mudado: `src/` = ex `backend/`+`frontend/`, `tests/` = ex `backend/app/tests`)
+  - `src/app/`: FastAPI app mínima con `GET /api/health`, SQLAlchemy + Alembic inicializado, `shared/` con settings (Pydantic), logger, db session, exceptions con mensajes en rioplatense (RN-GL-02)
+  - `src/` (frontend): Vite + React + TypeScript + PWA base (manifest + service worker vacío), React Router, TanStack Query, Tailwind
   - `docker-compose.yml`: api + postgres + redis + worker (+ mailhog dev)
   - `.env.example` con las 11 variables de §08 (DATABASE_URL, REDIS_URL, JWT_SECRET, MP_*, WA_*, SMTP_URL, FRONT_URL, TENANT_SLUG_DEFAULT); secretos solo `${VAR}`, jamás hardcodeados (RN-SE-04)
   - CI GitHub Actions: jobs paralelos backend (pytest) y frontend (tsc + build)

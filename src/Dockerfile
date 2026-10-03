@@ -3,17 +3,18 @@
 
 FROM python:3.12.7-slim-bookworm AS builder
 WORKDIR /srv
-COPY backend/pyproject.toml ./
+COPY pyproject.toml ./
+COPY app ./app
 RUN pip install --no-cache-dir --prefix=/srv/deps . \
     && pip install --no-cache-dir --prefix=/srv/deps uvicorn asyncpg redis
 
 FROM python:3.12.7-slim-bookworm AS runtime
 RUN useradd --create-home --uid 10001 appuser
-WORKDIR /srv/backend
+WORKDIR /srv/src
 COPY --from=builder /srv/deps /usr/local
-COPY backend/app ./app
-COPY backend/alembic ./alembic
-COPY backend/alembic.ini ./alembic.ini
+COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 USER appuser
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

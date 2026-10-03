@@ -1,99 +1,165 @@
 # Turnos Consultorio Odontología
 
-SaaS de gestión odontológica con foco en **turnos y agenda de pacientes** para
-consultorios y clínicas de Argentina y Latinoamérica.
+SaaS multi-tenant de gestión odontológica para consultorios y clínicas de
+Argentina y Latinoamérica: agenda multi-profesional con anti-solapamiento,
+reserva online 24/7, historia clínica + odontograma FDI, caja/señas con
+Mercado Pago, obras sociales y recordatorios por WhatsApp.
 
-> 📌 Este README evoluciona con el proyecto: a medida que avancemos se amplía
-> con instalación, uso y documentación de cada entrega.
+## Clonar
 
-## El problema
+```bash
+git clone https://github.com/jeronimocoronel784-hue/turnos-odontologia
+cd turnos-odontologia
+```
 
-Los consultorios gestionan agenda, historia clínica/odontograma, cobros/obras
-sociales y comunicación con herramientas desconectadas (WhatsApp manual,
-Excel/papel, sistemas legacy o SaaS extranjeros sin OS, AFIP/ARCA ni Mercado
-Pago). Eso genera dobles reservas, ausentismo sin recupero, huecos sin
-rellenar, doble carga administrativa y pérdida de trazabilidad clínica y
-financiera.
+## Prerrequisitos
 
-## La oportunidad
+| Herramienta | Versión mínima |
+|---|---|
+| Docker + Docker Compose | Docker 24 / Compose v2 |
+| Python | 3.12 |
+| Node | 22 |
 
-El análisis competitivo (`discovery/discovery.md`, 18 sistemas relevados)
-muestra que **nadie combina** obras sociales/prepagas + facturación AFIP/ARCA +
-Mercado Pago + WhatsApp automático + precio en ARS. Ese combo es el hueco a
-ocupar.
+## Configurar entorno
 
-## MVP (alcance v1)
+```bash
+cp .env.example .env
+```
 
-- Agenda multi-profesional / multi-sillón con anti-solapamiento, sobreturnos
-  explícitos y bloqueos
-- Reserva online 24/7 + confirmación / cancelación / reprogramación + lista
-  de espera
-- Recordatorios y confirmación automática por WhatsApp Business API + email
-- Ficha clínica + anamnesis + odontograma FDI + presupuestos y planes
-- Caja diaria + señas vinculadas al turno + Mercado Pago + cálculo de
-  cobertura OS vs particular + liquidación exportable
-- Roles y permisos + auditoría append-only + exportación de datos
+Completá en `.env` las variables obligatorias (el compose no arranca sin
+ellas): `POSTGRES_PASSWORD`, `APP_DB_PASSWORD` y `JWT_SECRET`. El resto tiene
+valores de ejemplo en `.env.example`. NUNCA commitees `.env` con secretos
+(R10).
 
-Para v2: facturación electrónica AFIP/ARCA nativa, periodontograma avanzado,
-recepcionista IA por voz, campañas de recuperación, push/in-app.
+## Levantar stack
 
-## Stack
+```bash
+docker compose up --build
+```
 
-| Capa | Tecnología |
-|------|------------|
-| Backend | Python + FastAPI + JWT + SQLAlchemy |
-| Base de datos | PostgreSQL (multi-tenant) |
-| Colas / async | Redis |
-| Frontend | React + TypeScript + Vite (PWA instalable en móvil y desktop) |
-| Infra | Docker / Docker Compose |
+Servicios:
+
+| Servicio | Qué es | Puerto |
+|---|---|---|
+| `api` | FastAPI | :8000 |
+| `db` | PostgreSQL 15 | :5432 |
+| `redis` | Redis 7 (colas/caché) | :6379 |
+| `worker` | Worker de colas | — |
+| `mailhog` | Email transaccional en dev | :8025 (UI) / :1025 (SMTP) |
+
+> Estado del frontend: la PWA tiene imagen nginx lista en
+> `src/Dockerfile.frontend` (+ `src/nginx.conf`), pero el compose todavía no
+> declara ese servicio. Para desarrollo del front: `cd src && npm ci &&
+> npm run dev`.
+
+## Migraciones y seed
+
+```bash
+# Migraciones (servicio `migrar`, perfil tools)
+docker compose --profile tools run --rm migrar
+# Equivalente local:
+cd src && alembic upgrade head
+```
+
+La migración `001` crea `tenant`, `usuario` y `auditoria` (+ rol `turnos_app`
+restringido: solo INSERT+SELECT en auditoría). El seed piloto es 100%
+ficticio (1 tenant + 1 Dueño + matriz de permisos base, idempotente):
+
+```bash
+cd src && python -m app.infrastructure.seed
+```
+
+## Correr tests
+
+Backend con **DB real en contenedor, sin mocks de DB** (R11):
+
+```bash
+python -m pytest tests -q
+```
+
+Frontend (tipos + build, desde `src/`):
+
+```bash
+cd src && npm ci && npm run build
+```
+
+Lint + tipos (mismos comandos que CI):
+
+```bash
+ruff check --config src/pyproject.toml src tests
+ruff format --check --config src/pyproject.toml src tests
+mypy src/app src/alembic
+```
+
+## Health check
+
+```bash
+curl http://localhost:8000/api/health
+```
+
+- `200` con `{"estado":"ok",...}` si API + PostgreSQL + Redis responden.
+- `503` con `detalle` en rioplatense indicando qué servicio está caído
+  (sin stack traces ni datos sensibles).
 
 ## Estructura del repo
 
 ```text
-discovery/            Análisis competitivo y de mercado (18 sistemas)
-knowledge-base/       Base de conocimiento canónica (visión, datos, reglas, flujos…)
+src/                  Código (backend + frontend)
+  app/                FastAPI: api/ (routers+schemas), domain/ (Tenant, Usuario,
+                      Auditoria, mixins), application/, infrastructure/ (db, seed),
+                      shared/ (settings, db session, logging, exceptions), workers/
+  alembic/            Migraciones (001: tenant, usuario, auditoria)
+  src/                React + TS PWA (features/, shared/, pages/)
+  public/             Assets PWA (manifest, íconos)
+  Dockerfile / Dockerfile.frontend / nginx.conf
+  package.json / vite.config.ts / tsconfig.json / tailwind.config.js
+  pyproject.toml / alembic.ini / index.html
+tests/                Suite pytest contra DB real (conftest + 7 módulos test_*)
+db/init/              Rol `turnos_app` restringido (init de Postgres)
+docker-compose.yml    api + postgres + redis + worker + migrar + mailhog
+docs/
+  changes/2026-10-03-c-01-foundation-core-models/  Copia de entrega del change C-01+C-02
+  discovery/          Vacía hasta la Tarea 2 (genera `informe-discovery.md`)
+discovery/discovery.md  Análisis competitivo (18 sistemas, trazabilidad del state JSON)
+knowledge-base/       Fuente de verdad del dominio (visión, datos, reglas, flujos…)
+openspec/             Specs y changes de OpenSpec (fuente del CLI)
 CHANGES.md            Índice operativo de implementación (17 changes, 7 fases)
-openspec/             Specs y changes de OpenSpec
-.atl/skill-registry.md  Skills disponibles y sus reglas compactas
+AGENTS.md / CLAUDE.md Reglas del proyecto para agentes
+pytest.ini / .env.example / .github/workflows/ci.yml
 ```
 
-## Roadmap
+> **Nota de equivalencia:** `src/` = ex `backend/` + `frontend/` y `tests/` =
+> ex `backend/app/tests`, tras la mudanza al layout actual. Si un doc viejo
+> menciona `backend/` o `frontend/`, leé `src/`; si menciona
+> `backend/app/tests`, leé `tests/`.
 
-`CHANGES.md` organiza la implementación en **17 changes** en 7 fases, con
-camino crítico de 9 changes:
+## Nota CI
 
-`C-01 foundation → C-02 modelos core → C-03 auth/RBAC → C-05 pacientes →
-C-06 agenda → C-09 HC/odontograma → C-11 caja/señas → C-12 Mercado Pago →
-C-15 reserva pública PWA`
+`.github/workflows/ci.yml` corre backend (pytest contra Postgres/Redis de
+servicio) y frontend (`tsc` + build) en paralelo. Las credenciales que usa
+(`postgres:postgres`, `turnos_app_ci`, JWT de ejemplo) son **dummies
+efímeros que solo existen dentro del runner**, práctica estándar: ningún
+secreto real vive en el repo.
 
-Primer change: `/opsx:propose C-01-foundation-setup`
+## Troubleshooting
 
-## Estado actual
+- **Puertos ocupados** (`5432`, `6379`, `8000`, `8025`/`1025`): otro Postgres,
+  Redis o Mailhog local colisiona. Bajá el servicio local o liberá el puerto
+  antes de `docker compose up`.
+- **Error `Falta POSTGRES_PASSWORD / APP_DB_PASSWORD / JWT_SECRET en .env`**:
+  no copiaste el entorno. Corré `cp .env.example .env` y completá esas tres
+  variables.
+- **Docker daemon apagado**: `docker compose` falla con error de conexión.
+  Abrí Docker Desktop (o `sudo systemctl start docker`) y reintentá.
+- **`/api/health` en 503**: revisá que `db` y `redis` estén `healthy`
+  (`docker compose ps`) antes de mirar la API.
 
-Ciclo 1 completo (2026-10-03): C-01 `foundation-setup` + C-02
-`core-models-multitenant` implementados juntos en el change
-`c-01-foundation-core-models` (archivado en
-`openspec/changes/archive/2026-10-03-c-01-foundation-core-models/`,
-specs principales en `openspec/specs/foundation-setup/` y
-`openspec/specs/core-models-multitenant/`). Apply 10/14 + Verify 22
-passed/2 skipped; 4 tasks de seguimiento pendientes de verificación en
-CI/Docker (compose up + health, permiso auditoría, workflow CI,
-verificación integral — ver nota en `CHANGES.md` C-02).
+## Estado
 
-Próximo: C-03 `auth-rbac-tokens` (`/opsx:propose C-03-auth-rbac-tokens`).
+- [x] C-01 `foundation-setup` + C-02 `core-models-multitenant` (ciclo 1,
+  archivado en `openspec/changes/archive/2026-10-03-c-01-foundation-core-models/`,
+  copia de entrega en `docs/changes/`).
+- [ ] Próximo: C-03 `auth-rbac-tokens` (`/opsx:propose C-03-auth-rbac-tokens`).
 
-Fundación del proyecto (orquestador `active-orchestrator`):
-
-- [x] Discovery de mercado
-- [x] Knowledge base
-- [x] Roadmap (`CHANGES.md`)
-- [x] Skills + registry
-- [x] Reglas del proyecto (`CLAUDE.md`/`AGENTS.md`)
-- [x] C-01 foundation-setup + C-02 core-models-multitenant
-- [ ] C-03 auth-rbac-tokens en adelante
-
-## Gobierno de datos sensibles
-
-Auditoría append-only en turnos/HC/caja, historia clínica sin borrado físico,
-consentimiento firmado antes de prestaciones invasivas y opt-in obligatorio
-para WhatsApp (Ley 25.326 + HCE).
+Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
+competencia en `discovery/discovery.md`.

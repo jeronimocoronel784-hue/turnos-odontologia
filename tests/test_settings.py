@@ -41,7 +41,7 @@ def test_con_variables_minimas_construye_settings(monkeypatch: pytest.MonkeyPatc
 
 
 def test_env_example_solo_placeholders_sin_secretos() -> None:
-    raiz = Path(__file__).resolve().parents[3]
+    raiz = Path(__file__).resolve().parents[1]
     ejemplo = (raiz / ".env.example").read_text(encoding="utf-8")
     assert "JWT_SECRET=" in ejemplo
     assert "PLACEHOLDER" in ejemplo or "cambiar-por" in ejemplo
