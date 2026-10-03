@@ -1,0 +1,87 @@
+# Stack local: api + postgres 15 + redis 7 + worker (+ mailhog dev).
+# Un comando: `docker compose up --build` (con el .env configurado desde .env.example).
+# La API corre con el rol app restringido (D4); migraciones/seed usan el owner.
+
+services:
+  db:
+    image: postgres:15.10-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-turnos_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-turnos}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Falta APP_DB_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7.4.1-bookworm
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://turnos_app:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-turnos}
+      DATABASE_URL_OWNER: postgresql+asyncpg://${POSTGRES_USER:-turnos_owner}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-turnos}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
+      FRONT_URL: http://localhost:5173
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "app.workers.main"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://turnos_app:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-turnos}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  migrar:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL_OWNER: postgresql+asyncpg://${POSTGRES_USER:-turnos_owner}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-turnos}
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  pgdata:

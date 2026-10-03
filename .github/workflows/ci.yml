@@ -1,0 +1,75 @@
+# CI del ciclo C-01: backend (pytest contra Postgres/Redis reales) y frontend
+# (tsc + build) en PARALELO. Ambos deben estar en verde (spec foundation 1.5).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15.10-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: turnos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d turnos"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7.4.1-bookworm
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL_OWNER: postgresql+asyncpg://postgres:postgres@localhost:5432/turnos
+      DATABASE_URL_TEST: postgresql+asyncpg://postgres:postgres@localhost:5432/turnos
+      APP_ROLE_URL_TEST: postgresql+asyncpg://turnos_app:turnos_app_ci@localhost:5432/turnos
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: secreto-solo-ci-con-mas-de-32-caracteres-ok
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar backend + dev
+        run: pip install -e "./backend[dev]"
+      - name: Crear rol app restringido
+        run: psql "postgresql://postgres:postgres@localhost:5432/turnos" -c "CREATE ROLE turnos_app WITH LOGIN PASSWORD 'turnos_app_ci';"
+      - name: Migrar (001 con GRANTs D4)
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Lint + tipos
+        run: |
+          ruff check backend
+          ruff format --check backend
+          mypy backend/app backend/alembic
+      - name: Suite contra DB real (R11)
+        run: python -m pytest backend/app/tests -q -p no:cacheprovider
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar
+        working-directory: frontend
+        run: npm ci
+      - name: Tipos + build
+        working-directory: frontend
+        run: npm run build

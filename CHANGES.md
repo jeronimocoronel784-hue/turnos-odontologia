@@ -109,7 +109,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ## FASE 0 — Cimientos
 
 ### [C-01] `foundation-setup`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` implementado en ciclo 1 — change `c-01-foundation-core-models` (archivada en `openspec/changes/archive/2026-10-03-c-01-foundation-core-models/`, specs en `openspec/specs/foundation-setup/spec.md`). Cubre C-01 + C-02 juntos.
 - **Scope**: Scaffolding completo del monorepo + infraestructura base
   - Estructura `backend/app/{domain,application,infrastructure,api,workers,tests}` + `frontend/src/{features,shared,pages}` según `08_arquitectura_propuesta.md` §Estructura
   - `backend/`: FastAPI app mínima con `GET /api/health`, SQLAlchemy + Alembic inicializado, `shared/` con settings (Pydantic), logger, db session, exceptions con mensajes en rioplatense (RN-GL-02)
@@ -127,7 +127,8 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-02] `core-models-multitenant`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` implementado en ciclo 1 — change `c-01-foundation-core-models` (archivada en `openspec/changes/archive/2026-10-03-c-01-foundation-core-models/`, specs en `openspec/specs/core-models-multitenant/spec.md`). Cubre C-01 + C-02 juntos.
+- **Seguimiento pendiente (4 tasks → verificar en CI/Docker)**: 1.4 `docker compose up --build` + health 200 · 2.4 permiso DB auditoría (UPDATE/DELETE rechazados) · 4.2 workflow CI (pytest + tsc/build) · 4.3 verificación integral del ciclo. Apply 10/14, Verify 22 passed/2 skipped (skips por diseño, corren en CI).
 - **Scope**: Entidades raíz multi-tenant + auditoría append-only + seed piloto
   - Modelos: `Tenant` (con `politicas` jsonb), `Usuario` (rol enum dueno/recepcion/odontologo, email único por tenant, matrícula obligatoria si odontólogo), `Auditoria` (solo INSERT+SELECT, retención 5 años)
   - `TenantMixin` (`tenant_id` FK en toda tabla de negocio), `AuditMixin` (`created_at/updated_at`), `BaseRepository[T]` + `UnitOfWork`

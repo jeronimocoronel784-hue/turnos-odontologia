@@ -70,14 +70,27 @@ Primer change: `/opsx:propose C-01-foundation-setup`
 
 ## Estado actual
 
-Fundación en curso (orquestador `active-orchestrator`):
+Ciclo 1 completo (2026-10-03): C-01 `foundation-setup` + C-02
+`core-models-multitenant` implementados juntos en el change
+`c-01-foundation-core-models` (archivado en
+`openspec/changes/archive/2026-10-03-c-01-foundation-core-models/`,
+specs principales en `openspec/specs/foundation-setup/` y
+`openspec/specs/core-models-multitenant/`). Apply 10/14 + Verify 22
+passed/2 skipped; 4 tasks de seguimiento pendientes de verificación en
+CI/Docker (compose up + health, permiso auditoría, workflow CI,
+verificación integral — ver nota en `CHANGES.md` C-02).
+
+Próximo: C-03 `auth-rbac-tokens` (`/opsx:propose C-03-auth-rbac-tokens`).
+
+Fundación del proyecto (orquestador `active-orchestrator`):
 
 - [x] Discovery de mercado
 - [x] Knowledge base
 - [x] Roadmap (`CHANGES.md`)
 - [x] Skills + registry
-- [ ] Reglas del proyecto (`CLAUDE.md`/`AGENTS.md`) — siguiente paso
-- [ ] Implementación C-01 en adelante
+- [x] Reglas del proyecto (`CLAUDE.md`/`AGENTS.md`)
+- [x] C-01 foundation-setup + C-02 core-models-multitenant
+- [ ] C-03 auth-rbac-tokens en adelante
 
 ## Gobierno de datos sensibles
 

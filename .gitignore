@@ -1,0 +1,29 @@
+# Secretos locales: jamás se commitean (R10, RN-SE-04).
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.db
+.venv/
+
+# Frontend
+node_modules/
+dist/
+*.local
+
+# OpenSpec efímero
+openspec/changes/**/specs/review/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build artifacts
+*.egg-info/
