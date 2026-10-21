@@ -118,15 +118,14 @@ src/                  Código (backend + frontend)
                       Dockerfile.frontend / nginx.conf,
                       package.json / vite.config.ts / tsconfig.json / tailwind.config.js /
                       postcss.config.js / index.html
-tests/                Suite pytest contra DB real (conftest + 7 módulos test_*)
+tests/                Suite pytest contra DB real (conftest + 8 módulos test_*)
 db/init/              Rol `turnos_app` restringido (init de Postgres)
 docker-compose.yml    api + postgres + redis + worker + migrar + mailhog
-docs/
-  changes/2026-10-03-c-01-foundation-core-models/  Copia de entrega del change C-01+C-02
-  discovery/          Vacía hasta la Tarea 2 (genera `informe-discovery.md`)
-discovery/discovery.md  Análisis competitivo (18 sistemas, trazabilidad del state JSON)
+docs/                 Documentación adicional e informes de discovery
 knowledge-base/       Fuente de verdad del dominio (visión, datos, reglas, flujos…)
 openspec/             Specs y changes de OpenSpec (fuente del CLI)
+.agents/              Skills y configuración de agentes IA
+.opencode/            Comandos y configuración de OpenCode
 CHANGES.md            Índice operativo de implementación (17 changes, 7 fases)
 AGENTS.md / CLAUDE.md Reglas del proyecto para agentes
 pytest.ini / .env.example / .github/workflows/ci.yml
