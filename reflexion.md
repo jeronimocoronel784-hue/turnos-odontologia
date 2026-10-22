@@ -12,4 +12,6 @@ En cuanto a la participación grupal, el trabajo se desarrolló de forma colabor
 
 En conclusión, este trabajo nos permitió comprender la importancia de verificar la información producida por herramientas de inteligencia artificial, utilizar conscientemente el protocolo de inspección y reconocer el valor de una especificación bien definida antes de comenzar a desarrollar. Asimismo, comprobamos que contar con una base de conocimiento sólida facilita la toma de decisiones y mejora la calidad del resultado final, mientras que el ciclo OPSX proporciona una estructura clara para llevar una funcionalidad desde la idea inicial hasta su implementación y validación completa.
 
+Muchisimas gracias.
+
 
