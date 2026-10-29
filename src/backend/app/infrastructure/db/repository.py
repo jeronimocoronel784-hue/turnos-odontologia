@@ -42,7 +42,7 @@ class BaseRepository[T]:
 
     async def obtener(self, entidad_id: object) -> T | None:
         """Obtiene por PK solo si pertenece al tenant actual."""
-        stmt = select(self.modelo).where(  # type: ignore[arg-type]
+        stmt = select(self.modelo).where(
             self.modelo.tenant_id == self.tenant_id,  # type: ignore[attr-defined]
             self.modelo.id == entidad_id,  # type: ignore[attr-defined]
         )
@@ -51,7 +51,7 @@ class BaseRepository[T]:
     async def listar(self, limite: int = 100) -> list[T]:
         """Lista filas SOLO del tenant actual, con límite defensivo."""
         stmt = (
-            select(self.modelo)  # type: ignore[arg-type]
+            select(self.modelo)
             .where(self.modelo.tenant_id == self.tenant_id)  # type: ignore[attr-defined]
             .limit(limite)
         )

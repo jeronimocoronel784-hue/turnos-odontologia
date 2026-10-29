@@ -18,7 +18,7 @@ class Tenant(Base, AuditMixin):
     id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     nombre: Mapped[str] = mapped_column(String(200), nullable=False)
-    politicas: Mapped[dict] = mapped_column(
+    politicas: Mapped[dict[str, object]] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"),
         nullable=False,
         default=dict,

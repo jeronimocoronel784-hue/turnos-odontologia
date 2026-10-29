@@ -14,7 +14,9 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import CHAR, DateTime, ForeignKey
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 
 def ahora_utc() -> datetime:
@@ -22,31 +24,30 @@ def ahora_utc() -> datetime:
     return datetime.now(UTC)
 
 
-class GUID(CHAR):  # type: ignore[type-arg]
-    """UUID como CHAR(32) hexadecimal en todos los dialectos."""
+class GUID(TypeDecorator[uuid.UUID]):
+    """UUID como CHAR(32) hexadecimal en todos los dialectos.
 
-    def __init__(self) -> None:
-        super().__init__(32)
+    `TypeDecorator` (y no una subclase de `CHAR`) porque el dialecto asyncpg
+    sustituye `CHAR` por `AsyncpgCHAR`, que anula `bind_processor`: sin esto
+    asyncpg recibe un `UUID` y falla con "expected str, got UUID".
+    """
 
-    def bind_processor(self, dialect):  # type: ignore[no-untyped-def]
-        def procesar(value: object) -> object:
-            if value is None:
-                return None
-            if isinstance(value, uuid.UUID):
-                return value.hex
-            return uuid.UUID(str(value)).hex
+    impl = CHAR(32)
+    cache_ok = True
 
-        return procesar
+    def process_bind_param(self, value: uuid.UUID | str | None, dialect: Dialect) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return value.hex
+        return uuid.UUID(str(value)).hex
 
-    def result_processor(self, dialect, coltype):  # type: ignore[no-untyped-def]
-        def procesar(value: object) -> object:
-            if value is None:
-                return None
-            if isinstance(value, uuid.UUID):
-                return value
-            return uuid.UUID(str(value))
-
-        return procesar
+    def process_result_value(self, value: object, dialect: Dialect) -> uuid.UUID | None:
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return value
+        return uuid.UUID(str(value))
 
 
 class TenantMixin:

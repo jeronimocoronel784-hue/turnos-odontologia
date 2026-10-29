@@ -54,7 +54,7 @@ jobs:
         run: |
           ruff check --config src/backend/pyproject.toml src/backend tests
           ruff format --check --config src/backend/pyproject.toml src/backend tests
-          mypy src/backend/app src/backend/alembic
+          mypy --config-file src/backend/pyproject.toml src/backend/app src/backend/alembic
       - name: Suite contra DB real (R11)
         run: python -m pytest tests -q -p no:cacheprovider
 

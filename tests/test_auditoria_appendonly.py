@@ -62,6 +62,16 @@ def _sesion_rol_app() -> AsyncSession:
     return factory()
 
 
+def _assert_permiso_denegado(exc: DBAPIError) -> None:
+    """Verifica el rechazo por SQLSTATE 42501 (insufficient_privilege).
+
+    Se mira el código y no el mensaje porque el texto del error depende del
+    `lc_messages` del servidor ("permission denied" vs "permiso denegado").
+    """
+    sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+    assert sqlstate == "42501", f"Se esperaba rechazo por permiso (42501); llegó: {exc.orig}"
+
+
 async def test_update_sobre_auditoria_lo_rechaza_la_db(
     session: AsyncSession, dialecto: str, tenant_a: Tenant
 ) -> None:
@@ -73,12 +83,13 @@ async def test_update_sobre_auditoria_lo_rechaza_la_db(
     await session.commit()
     restringida = _sesion_rol_app()
     try:
-        with pytest.raises(DBAPIError, match="(?i)(permission|denied|insufficient)"):
+        with pytest.raises(DBAPIError) as exc_info:
             await restringida.execute(
                 text("UPDATE auditoria SET accion = 'hack' WHERE id = :id"),
                 {"id": evento.id.hex},
             )
             await restringida.commit()
+        _assert_permiso_denegado(exc_info.value)
         await restringida.rollback()
     finally:
         await restringida.close()
@@ -95,11 +106,12 @@ async def test_delete_sobre_auditoria_lo_rechaza_la_db(
     await session.commit()
     restringida = _sesion_rol_app()
     try:
-        with pytest.raises(DBAPIError, match="(?i)(permission|denied|insufficient)"):
+        with pytest.raises(DBAPIError) as exc_info:
             await restringida.execute(
                 text("DELETE FROM auditoria WHERE id = :id"), {"id": evento.id.hex}
             )
             await restringida.commit()
+        _assert_permiso_denegado(exc_info.value)
         await restringida.rollback()
     finally:
         await restringida.close()

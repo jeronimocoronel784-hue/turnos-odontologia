@@ -29,10 +29,10 @@ class Auditoria(Base):
     accion: Mapped[str] = mapped_column(String(60), nullable=False)
     entidad: Mapped[str] = mapped_column(String(60), nullable=False)
     entidad_id: Mapped[str] = mapped_column(String(60), nullable=False)
-    antes: Mapped[dict | None] = mapped_column(
+    antes: Mapped[dict[str, object] | None] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=True
     )
-    despues: Mapped[dict | None] = mapped_column(
+    despues: Mapped[dict[str, object] | None] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
