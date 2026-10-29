@@ -34,6 +34,14 @@ Access token firmado con `JWT_SECRET` (HS256). **Alternativa considerada:** PyJW
 
 Claims: `sub` (id de usuario), `tenant_id`, `roles` (lista), `email`, `jti`, `type` (`access`), `iat`, `exp`. `leeway` de 30 s para tolerar skew de reloj entre contenedores.
 
+### D1b — Hash de passwords con `bcrypt` directo, sin `passlib`
+
+`passlib` 1.7.4 está roto con bcrypt 5.0 (`AttributeError: module 'bcrypt' has no attribute '__about__'`) y no tiene mantenimiento activo. Se usa `bcrypt.hashpw` / `bcrypt.checkpw` directamente con rounds configurables (`BCRYPT_ROUNDS`, 4 en tests / 12 por defecto). El formato `$2b$` sigue siendo estándar, así que no hay migración de hashes.
+
+### D1c — Login multi-tenant con `tenant_slug` opcional
+
+El modelo permite el mismo email en dos tenants, así que email + password es ambiguo. El login busca por email entre tenants: 1 coincidencia → autentica; más de una → exige `tenant_slug` en el body y responde 400 pidiéndolo. **Alternativa considerada:** `tenant_slug` obligatorio siempre — más explícito, pero cambia el contrato para el caso normal (piloto de un solo consultorio).
+
 ### D2 — Refresh token opaco persistido, no JWT
 
 El refresh es un valor aleatorio (`secrets.token_urlsafe(48)`) guardado **hasheado** (SHA-256) en `refresh_token`. **Alternativa considerada:** refresh JWT stateless — se descarta porque sin estado no hay revocación real ni detección de reúso, que son requisitos del spec.

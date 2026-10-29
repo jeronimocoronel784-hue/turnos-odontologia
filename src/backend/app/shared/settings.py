@@ -20,6 +20,17 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(description="Firma de tokens (aleatorio 32+ caracteres)")
     jwt_access_min: int = Field(default=15, description="Vida útil del access token en minutos")
     jwt_refresh_days: int = Field(default=30, description="Vida útil del refresh token en días")
+    cookie_secure: bool = Field(
+        default=True,
+        description="Flag Secure de la cookie de refresh (false solo en dev sobre http)",
+    )
+    bcrypt_rounds: int = Field(
+        default=12, ge=4, le=16, description="Rondas de bcrypt (4 en tests, 12 en producción)"
+    )
+    login_rate_limit: int = Field(default=5, ge=1, description="Intentos de login por ventana")
+    login_rate_window_s: int = Field(
+        default=60, ge=1, description="Ventana del rate limit (segundos)"
+    )
     mp_access_token: str = Field(default="", description="Credencial Mercado Pago")
     mp_webhook_secret: str = Field(default="", description="Firma webhook Mercado Pago")
     wa_api_token: str = Field(default="", description="Token Cloud API WhatsApp")

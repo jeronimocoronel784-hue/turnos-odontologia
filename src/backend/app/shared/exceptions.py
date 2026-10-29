@@ -25,6 +25,76 @@ class ServicioNoDisponible(AppError):
         super().__init__(mensaje, 503)
 
 
+class NoAutenticado(AppError):
+    """Falta token, venció o es inválido: 401 sin filtrar el motivo real."""
+
+    status_code = 401
+
+    def __init__(
+        self, mensaje: str = "Che, tu sesión no es válida. Iniciá sesión de nuevo."
+    ) -> None:
+        super().__init__(mensaje, 401)
+
+
+class CredencialesInvalidas(AppError):
+    """Login fallido: mismo mensaje para email inexistente, password mal o inactivo."""
+
+    status_code = 401
+
+    def __init__(
+        self, mensaje: str = "El email o la contraseña no son correctos. Probá de nuevo."
+    ) -> None:
+        super().__init__(mensaje, 401)
+
+
+class PermisoInsuficiente(AppError):
+    """Rol sin permiso sobre el recurso: 403 sin revelar si el recurso existe."""
+
+    status_code = 403
+
+    def __init__(
+        self,
+        mensaje: str = "No tenés permiso para esta acción. Si la necesitás, pedísela al dueño.",
+    ) -> None:
+        super().__init__(mensaje, 403)
+
+
+class DemasiadosIntentos(AppError):
+    """Rate limit de login superado: 429 con indicación de espera."""
+
+    status_code = 429
+
+    def __init__(self, mensaje: str) -> None:
+        super().__init__(mensaje, 429)
+
+
+class SolicitudInvalida(AppError):
+    """Input válido en forma pero imposible de resolver (ej. email en 2 consultorios)."""
+
+    status_code = 400
+
+    def __init__(self, mensaje: str) -> None:
+        super().__init__(mensaje, 400)
+
+
+class NoEncontrado(AppError):
+    """El recurso no existe en el tenant del actor: 404 sin datos de terceros."""
+
+    status_code = 404
+
+    def __init__(self, mensaje: str = "No encontramos lo que buscabas.") -> None:
+        super().__init__(mensaje, 404)
+
+
+class Conflicto(AppError):
+    """Choque con una regla de unicidad (ej. email ya usado en el tenant): 409."""
+
+    status_code = 409
+
+    def __init__(self, mensaje: str) -> None:
+        super().__init__(mensaje, 409)
+
+
 def register_handlers(app: FastAPI) -> None:
     """Registra handlers globales: ningún error expone stack trace ni PHI."""
 

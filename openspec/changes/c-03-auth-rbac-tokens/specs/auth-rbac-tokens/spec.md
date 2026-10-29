@@ -22,6 +22,14 @@ El sistema SHALL autenticar usuarios internos activos con email + password verif
 - **WHEN** un usuario con `activo = false` envía credenciales correctas
 - **THEN** la respuesta es 401 y no se emite ningún token
 
+#### Scenario: Email presente en más de un consultorio
+- **WHEN** el email existe en dos tenants y el login no especifica `tenant_slug`
+- **THEN** la respuesta es 400 pidiendo el consultorio y no se autentica en ninguno
+
+#### Scenario: Email repetido con consultorio explícito
+- **WHEN** el email existe en dos tenants y el login envía `tenant_slug`
+- **THEN** se autentica únicamente contra el usuario de ese consultorio
+
 ### Requirement: Rate limiting de login
 
 El sistema SHALL limitar los intentos de login a 5 por ventana de 60 segundos por combinación de IP y email. Al superar el límite SHALL responder 429 con un mensaje rioplatense que indique cuánto esperar, y SHALL registrar el bloqueo sin exponer el email completo en logs (R9).
