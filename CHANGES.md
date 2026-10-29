@@ -127,8 +127,9 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-02] `core-models-multitenant`
-- **Estado**: `[ ]` pendiente — change activo `c-02-modelos-core` (ya propuesto, depende de C-01; NO aplicar hasta archivar C-01). Historia ciclo 1 en `openspec/changes/archive/2026-10-03-c-01-foundation-core-models/` queda como referencia (specs vigentes en `openspec/specs/core-models-multitenant/spec.md`), no como cierre.
-- **Seguimiento pendiente (4 tasks → verificar en CI/Docker)**: 1.4 `docker compose up --build` + health 200 · 2.4 permiso DB auditoría (UPDATE/DELETE rechazados) · 4.2 workflow CI (pytest + tsc/build) · 4.3 verificación integral del ciclo. Apply 10/14, Verify 22 passed/2 skipped (skips por diseño, corren en CI).
+- **Estado**: `[x]` cerrado y archivado en `openspec/changes/archive/2026-10-29-c-02-modelos-core/` (11/11 tareas verificadas contra **PostgreSQL 17 real**, 24 tests passed / 0 skipped). Historia ciclo 1 en `openspec/changes/archive/2026-10-03-c-01-foundation-core-models/` queda como referencia; specs vigentes en `openspec/specs/core-models-multitenant/spec.md`.
+- **Cierre (defectos reales encontrados y corregidos)**: (1) `GUID` no convertía UUID→hex en asyncpg (el dialecto sustituye `CHAR` por `AsyncpgCHAR`, que anula `bind_processor`) → todo INSERT contra Postgres fallaba con `expected str, got UUID`; reescrito como `TypeDecorator`. (2) `types-redis` (stubs de redis 4.6) pisaba los tipos inline de redis 8 → `mypy` roto en CI; eliminado. (3) CI corría `mypy` sin el `strict` del proyecto (no descubría `src/backend/pyproject.toml`) → ahora `--config-file`. (4) El test de rechazo de `auditoria` matcheaba el mensaje en inglés y fallaba con server en español → ahora valida SQLSTATE `42501`. GRANTs de auditoría (`INSERT+SELECT`) ya eran correctos: no se tocó ningún permiso SQL.
+
 - **Scope**: Entidades raíz multi-tenant + auditoría append-only + seed piloto
   - Modelos: `Tenant` (con `politicas` jsonb), `Usuario` (rol enum dueno/recepcion/odontologo, email único por tenant, matrícula obligatoria si odontólogo), `Auditoria` (solo INSERT+SELECT, retención 5 años)
   - `TenantMixin` (`tenant_id` FK en toda tabla de negocio), `AuditMixin` (`created_at/updated_at`), `BaseRepository[T]` + `UnitOfWork`
