@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.mixins import GUID, TenantMixin, ahora_utc
+from app.domain.mixins import GUID, TenantMixin, ahora_utc, asegurar_utc
 from app.infrastructure.db.base import Base
 
 
@@ -40,5 +40,5 @@ class TokenGestion(Base, TenantMixin):
             self.recurso == recurso
             and self.recurso_id == recurso_id
             and self.revocado_at is None
-            and self.vence_at > ahora
+            and asegurar_utc(self.vence_at) > ahora
         )

@@ -104,6 +104,60 @@ curl http://localhost:8000/api/health
 - `503` con `detalle` en rioplatense indicando qué servicio está caído
   (sin stack traces ni datos sensibles).
 
+## Autenticación (C-03)
+
+Todo endpoint interno exige `Authorization: Bearer <access_token>`. El access
+token es un JWT HS256 de vida corta (`JWT_ACCESS_MIN`, 15 min por defecto) con
+los claims `sub`, `tenant_id`, `roles`, `email`, `jti`, `type`, `iat`, `exp`.
+El `tenant_id` efectivo sale **siempre** del token (R4): un `tenant_id` en body,
+query o path se ignora o se rechaza con 422.
+
+| Endpoint | Body | Éxito | Errores |
+|---|---|---|---|
+| `POST /api/auth/login` | `{"email","password","tenant_slug"?}` | `200` access + cookie | `400` email en 2 consultorios, `401` credenciales, `429` rate limit, `503` Redis caído |
+| `POST /api/auth/refresh` | — (cookie) | `200` access nuevo + cookie rotada | `401` sin cookie / vencido / revocado / reúso |
+| `POST /api/auth/logout` | — (cookie) | `204` siempre, cookie borrada | — |
+| `GET /api/auth/me` | — | `200` identidad | `401` sin token o inválido |
+
+`tenant_slug` solo hace falta si el mismo email existe en más de un
+consultorio; sin él, el login responde `400` pidiendo el consultorio. Cualquier
+input que intente mandar `tenant_id` o que no valide el schema responde `422`.
+
+Ejemplo de login:
+
+```bash
+curl -i -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"duena.piloto@example.com","password":"<password>"}'
+```
+
+<!-- contrato-login -->
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.firma",
+  "token_type": "bearer",
+  "expira_en_segundos": 900,
+  "usuario": {
+    "id": "6f1c8a3e-4b2d-4f5a-9c7e-1a2b3c4d5e6f",
+    "tenant_id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "tenant_slug": "consultorio-piloto",
+    "email": "duena.piloto@example.com",
+    "nombre": "Dueña Piloto Ficticia",
+    "roles": ["dueno"]
+  }
+}
+```
+
+El **refresh token nunca viaja en el body**: se entrega en la cookie
+`refresh_token`, que siempre es `HttpOnly` + `SameSite=Lax` + `Path=/api/auth`,
+lleva `Secure` cuando `COOKIE_SECURE=true` (default; `false` solo en dev sobre
+`http://localhost`) y dura `JWT_REFRESH_DAYS` días. Cada refresh rota el token:
+el anterior queda revocado y, si se reutiliza, se revoca toda la familia de la
+sesión y se audita `auth.refresh_reuso`.
+
+Todos los rechazos usan mensajes rioplatenses accionables y nunca revelan si un
+recurso o un usuario existe (RN-GL-02, R9).
+
 ## Estructura del repo
 
 ```text

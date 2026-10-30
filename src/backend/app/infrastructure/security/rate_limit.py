@@ -9,6 +9,7 @@ import hashlib
 from typing import Protocol
 
 from app.shared.exceptions import DemasiadosIntentos, ServicioNoDisponible
+from app.shared.logging import logger
 
 
 class ClienteRedis(Protocol):
@@ -53,6 +54,13 @@ async def verificar_limite_login(
         ) from exc
 
     if cantidad > limite:
+        # Registro del bloqueo sin el email completo: solo IP + huella del email (R9).
+        logger.warning(
+            "login bloqueado por rate limit ip=%s email_sha256=%s espera=%ss",
+            ip,
+            clave.rsplit(":", 1)[-1][:16],
+            espera,
+        )
         raise DemasiadosIntentos(
             f"Demasiados intentos de ingreso. Esperá {espera} segundos y probá de nuevo."
         )

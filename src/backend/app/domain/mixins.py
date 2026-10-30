@@ -24,6 +24,13 @@ def ahora_utc() -> datetime:
     return datetime.now(UTC)
 
 
+def asegurar_utc(valor: datetime) -> datetime:
+    """Normaliza a UTC aware: SQLite devuelve naive aunque la columna sea timezone=True."""
+    if valor.tzinfo is None:
+        return valor.replace(tzinfo=UTC)
+    return valor.astimezone(UTC)
+
+
 class GUID(TypeDecorator[uuid.UUID]):
     """UUID como CHAR(32) hexadecimal en todos los dialectos.
 

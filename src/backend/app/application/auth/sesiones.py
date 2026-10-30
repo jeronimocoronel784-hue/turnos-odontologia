@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.auditoria import registrar_auditoria
+from app.domain.mixins import asegurar_utc
 from app.domain.refresh_token import RefreshToken
 from app.domain.tenant import Tenant
 from app.domain.usuario import Usuario
@@ -162,7 +163,7 @@ async def rotar_refresh(
         await session.commit()
         raise NoAutenticado()
 
-    if fila.vence_at <= ahora:
+    if asegurar_utc(fila.vence_at) <= ahora:
         raise NoAutenticado()
 
     usuario = await session.get(Usuario, fila.usuario_id)

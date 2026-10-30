@@ -15,7 +15,7 @@ from app.application.auditoria import registrar_auditoria
 from app.domain.rbac import Accion, Recurso
 from app.domain.usuario import RolUsuario, Usuario
 from app.infrastructure.db.repository import BaseRepository
-from app.infrastructure.security.passwords import hashear_password
+from app.infrastructure.security.passwords import PasswordInvalido, hashear_password
 from app.shared.exceptions import Conflicto, NoEncontrado, SolicitudInvalida
 from app.shared.settings import Settings
 
@@ -39,6 +39,11 @@ async def crear_usuario(
     settings: Annotated[Settings, Depends(deps.settings_cacheados)],
 ) -> Usuario:
     """Alta de staff en el tenant del token; email repetido en el tenant es 409."""
+    try:
+        password_hash = hashear_password(datos.password, settings.bcrypt_rounds)
+    except PasswordInvalido as exc:
+        raise SolicitudInvalida(str(exc)) from exc
+
     usuario = Usuario(
         id=uuid.uuid4(),
         tenant_id=actor.tenant_id,
@@ -46,7 +51,7 @@ async def crear_usuario(
         nombre=datos.nombre,
         rol=datos.rol,
         matricula=datos.matricula,
-        password_hash=hashear_password(datos.password, settings.bcrypt_rounds),
+        password_hash=password_hash,
         activo=True,
     )
     session.add(usuario)

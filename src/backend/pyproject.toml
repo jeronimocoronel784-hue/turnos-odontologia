@@ -27,6 +27,9 @@ dev = [
   "httpx>=0.27",
   "ruff>=0.4",
   "mypy>=1.10",
+  "fakeredis>=2.23",
+  # Redis en memoria para los tests del rate limiter (C-03): CI no necesita el servicio.
+  "fakeredis>=2.23",
 ]
 
 [build-system]

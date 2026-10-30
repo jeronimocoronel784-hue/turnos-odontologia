@@ -57,14 +57,23 @@ async def crear_token_gestion(
 async def validar_token_gestion(
     session: AsyncSession,
     *,
+    tenant_id: uuid.UUID,
     token: str,
     recurso: str,
     recurso_id: str,
 ) -> TokenGestion:
-    """Devuelve la fila si el token sirve exactamente para ese recurso; si no, 401."""
+    """Devuelve la fila si el token sirve para ese tenant y recurso; si no, 401.
+
+    El `tenant_id` es obligatorio: el token está atado a un consultorio y un token
+    de otro tenant no puede habilitar el recurso aunque el `recurso_id` coincida
+    (RN-SE-03). Se filtra en la query para usar `ix_token_gestion_tenant_recurso`.
+    """
     fila = (
         await session.execute(
-            select(TokenGestion).where(TokenGestion.token_hash == hashear_token(token))
+            select(TokenGestion).where(
+                TokenGestion.tenant_id == tenant_id,
+                TokenGestion.token_hash == hashear_token(token),
+            )
         )
     ).scalar_one_or_none()
     ahora = datetime.now(UTC)

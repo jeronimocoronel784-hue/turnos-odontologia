@@ -20,7 +20,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Importar modelos para que create_all los vea (SQLAlchemy 2.0 sin registry global).
@@ -31,9 +31,11 @@ import app.domain.token_gestion  # noqa: F401
 import app.domain.usuario  # noqa: F401
 from app.api import deps
 from app.api.routers import auth, usuarios
+from app.domain.auditoria import Auditoria
 from app.domain.tenant import Tenant
 from app.domain.usuario import RolUsuario, Usuario
 from app.infrastructure.db.base import Base
+from app.infrastructure.security.jwt import emitir_access
 from app.infrastructure.security.passwords import hashear_password
 from app.shared.database import create_engine_for
 from app.shared.exceptions import register_handlers
@@ -193,3 +195,52 @@ async def crear_usuario(
         return usuario
 
     return _crear
+
+
+@pytest.fixture()
+def token_para(settings_test: Settings) -> Callable[..., str]:
+    """Emite un access token real para un usuario de fixture (claims del diseño D1)."""
+
+    def _token(usuario: Usuario, *, tenant_id: uuid.UUID | None = None) -> str:
+        token, _ = emitir_access(
+            usuario_id=usuario.id,
+            tenant_id=tenant_id if tenant_id is not None else usuario.tenant_id,
+            roles=[str(usuario.rol)],
+            email=usuario.email,
+            settings=settings_test,
+        )
+        return token
+
+    return _token
+
+
+@pytest.fixture()
+def autorizacion() -> Callable[[str], dict[str, str]]:
+    """Arma el header `Authorization: Bearer ...` para los requests de test."""
+
+    def _header(token: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token}"}
+
+    return _header
+
+
+@pytest_asyncio.fixture()
+async def auditoria_de(
+    session: AsyncSession,
+) -> AsyncGenerator[Callable[[str], Awaitable[list[Auditoria]]], None]:
+    """Consulta los eventos de auditoría por acción (R9: sin PHI ni credenciales)."""
+
+    async def _eventos(accion: str) -> list[Auditoria]:
+        return list(
+            (
+                await session.execute(
+                    select(Auditoria)
+                    .where(Auditoria.accion == accion)
+                    .order_by(Auditoria.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    yield _eventos

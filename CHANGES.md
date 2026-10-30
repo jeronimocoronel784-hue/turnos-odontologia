@@ -149,7 +149,16 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ## FASE 1 — Acceso
 
 ### [C-03] `auth-rbac-tokens`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` cerrado (17/17 tareas verificadas contra **PostgreSQL 18 real**, 125 tests passed / 0 skipped; fallback sin Docker 122 passed / 3 skipped solo en los casos que exigen GRANTs de Postgres).
+- **Entregado**:
+  - Migración 002 reversible (`refresh_token`, `token_gestion`, índices, únicos, FKs y GRANTs CRUD del rol app con su REVOKE); ciclo `upgrade head` → `downgrade -1` → `upgrade head` verificado contra Postgres.
+  - `POST /api/auth/login` (access JWT + refresh opaco en cookie), `POST /api/auth/refresh` (rotación real, reúso revoca la familia), `POST /api/auth/logout` (204 idempotente), `GET /api/auth/me`.
+  - Cookie del refresh: `HttpOnly`, `SameSite=Lax`, `Path=/api/auth`, `Secure` según `COOKIE_SECURE`, `max_age=JWT_REFRESH_DAYS`; el refresh nunca viaja en el body.
+  - bcrypt directo con `BCRYPT_ROUNDS` (límite de 72 bytes), JWT HS256 con leeway 30 s, tokens públicos de gestión con SHA-256 + comparación en tiempo constante y atados a `tenant_id` + recurso.
+  - Rate limiting de login en Redis (5/60 s por IP + huella del email, fail-closed 503, log sin email en claro).
+  - RBAC declarativo (14 recursos × 3 roles) enforced en la API con `requiere(recurso, accion)`, `ActorAutenticado` con `tenant_id` **solo** del token, y CRUD de `/api/usuarios` con auditoría de cambios de rol.
+  - `README.md` con la sección de autenticación y `tests/test_auth_documentacion.py` que verifica que la doc no derive del contrato real.
+- **Pendientes para changes posteriores** (no bloquean el cierre): cablear las rutas públicas que consumen `token_gestion` en C-06 (agenda/turnos), C-09 (HC), C-12 (Mercado Pago) y C-15 (reserva pública PWA); multi-rol real queda como contrato `roles: list` ya soportado.
 - **Scope**: Autenticación JWT + RBAC por matriz + tokens públicos para paciente sin login
   - `POST /api/auth/login` — JWT access corto + refresh con rotación (reúso = revocación), rate limiting 5/60s por IP+email
   - `POST /api/auth/refresh`, `POST /api/auth/logout` (blacklist), `GET /api/auth/me`
