@@ -239,8 +239,8 @@ secreto real vive en el repo.
 - [x] C-01 `foundation-setup` (`openspec/changes/archive/2026-10-15-c-01-solo-setup/`).
 - [x] C-02 `core-models-multitenant` (`openspec/changes/archive/2026-10-29-c-02-modelos-core/`).
 - [x] C-03 `auth-rbac-tokens` (`openspec/changes/archive/2026-10-30-c-03-auth-rbac-tokens/`).
-- [x] C-04 `catalogo-configuracion` (modelos Sillon, Prestacion, CoberturaOS, migración 003, endpoints /api/admin/*, políticas y seed).
-- [ ] En cola: C-05 `pacientes-gestion` (CRUD de pacientes, antecedentes y coberturas).
+- [x] C-04 `catalogo-configuracion` (`openspec/changes/archive/2026-10-30-c-04-catalogo-configuracion/`).
+- [ ] Próximo: C-05 `pacientes` (`/opsx:propose c-05-pacientes`).
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.

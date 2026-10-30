@@ -181,7 +181,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > C-04 y C-05 en paralelo (no se referencian). C-06 los une a ambos.
 
 ### [C-04] `catalogo-configuracion`
-- **Estado**: `[x]` implementado en `c-04-catalogo-configuracion` (9/9 tareas con Strict TDD, 61 tests nuevos — 186 passed en total, `ruff` + `mypy` estrictos limpios).
+- **Estado**: `[x]` cerrado y archivado en `openspec/changes/archive/2026-10-30-c-04-catalogo-configuracion/` (9/9 tareas con Strict TDD, 61 tests nuevos — 186 passed en total, `ruff` + `mypy` estrictos limpios; specs vigentes en `openspec/specs/catalogo-configuracion/spec.md`).
 - **Entregado**:
   - Modelos multi-tenant `Sillon`, `Prestacion` y `CoberturaOS` en `app/domain/` con constraints (`UNIQUE`, `CHECK` de duración > 0, `requiere_sena ⇒ monto_sena > 0`, montos `>= 0` y vigencia ordenada) y migración reversible `003_catalogo_configuracion` (con `GRANT`/`REVOKE` CRUD para `turnos_app`).
   - Schemas Pydantic estrictos (`extra='forbid'`, `Decimal`) en `app/api/schemas_catalogo.py` con validaciones y mensajes en rioplatense.
