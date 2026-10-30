@@ -181,7 +181,13 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > C-04 y C-05 en paralelo (no se referencian). C-06 los une a ambos.
 
 ### [C-04] `catalogo-configuracion`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` implementado en `c-04-catalogo-configuracion` (9/9 tareas con Strict TDD, 61 tests nuevos — 186 passed en total, `ruff` + `mypy` estrictos limpios).
+- **Entregado**:
+  - Modelos multi-tenant `Sillon`, `Prestacion` y `CoberturaOS` en `app/domain/` con constraints (`UNIQUE`, `CHECK` de duración > 0, `requiere_sena ⇒ monto_sena > 0`, montos `>= 0` y vigencia ordenada) y migración reversible `003_catalogo_configuracion` (con `GRANT`/`REVOKE` CRUD para `turnos_app`).
+  - Schemas Pydantic estrictos (`extra='forbid'`, `Decimal`) en `app/api/schemas_catalogo.py` con validaciones y mensajes en rioplatense.
+  - Endpoints CRUD bajo `/api/admin/{sillones,prestaciones,coberturas}` + `GET/PATCH /api/admin/tenant/politicas` protegidos con `requiere(Recurso.CONFIGURACION, ...)`, baja lógica (`activo=False` / `activa=False`, R7) y auditoría append-only (`sillon.*`, `prestacion.*`, `cobertura_os.*`, `tenant.actualizar_politicas`).
+  - Seed piloto extendido de forma idempotente con Sillón `"Box 1"` y las 5 prestaciones base (`Limpieza Dental`, `Consulta General`, `Arreglo / Restauración`, `Endodoncia`, `Extracción Simple`).
+  - Documentación en `README.md` (`## Catálogo y configuración (C-04)`) verificada por `tests/test_catalogo_documentacion.py`.
 - **Scope**: Catálogo clínico-administrativo que todo turno referencia
   - Modelos: `Sillon` (nombre único por tenant+sucursal), `Prestacion` (`duracion_min>0`, `requiere_sena` ⇒ `monto_sena>0`, flag `invasiva`), `CoberturaOS` (OS × prestación × arancel × copago × vigencia)
   - Endpoints CRUD admin: `/api/admin/sillones`, `/api/admin/prestaciones`, `/api/admin/coberturas`, `PATCH /api/admin/tenant/politicas` (anticipación mínima, seña default, cancelación)

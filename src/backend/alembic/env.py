@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.domain.auditoria import Auditoria  # noqa: F401
+from app.domain.cobertura_os import CoberturaOS  # noqa: F401
+from app.domain.prestacion import Prestacion  # noqa: F401
 from app.domain.refresh_token import RefreshToken  # noqa: F401
+from app.domain.sillon import Sillon  # noqa: F401
 from app.domain.tenant import Tenant  # noqa: F401
 from app.domain.token_gestion import TokenGestion  # noqa: F401
 from app.domain.usuario import Usuario  # noqa: F401

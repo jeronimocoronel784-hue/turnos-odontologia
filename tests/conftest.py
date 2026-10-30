@@ -25,12 +25,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Importar modelos para que create_all los vea (SQLAlchemy 2.0 sin registry global).
 import app.domain.auditoria  # noqa: F401
+import app.domain.cobertura_os  # noqa: F401
+import app.domain.prestacion  # noqa: F401
 import app.domain.refresh_token  # noqa: F401
+import app.domain.sillon  # noqa: F401
 import app.domain.tenant  # noqa: F401
 import app.domain.token_gestion  # noqa: F401
 import app.domain.usuario  # noqa: F401
 from app.api import deps
-from app.api.routers import auth, usuarios
+from app.api.routers import admin_catalogo, auth, usuarios
 from app.domain.auditoria import Auditoria
 from app.domain.tenant import Tenant
 from app.domain.usuario import RolUsuario, Usuario
@@ -69,7 +72,16 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
     async with factory() as ses:
         yield ses
         # Limpieza: borra en orden inverso a las FK.
-        for tabla in ("auditoria", "refresh_token", "token_gestion", "usuario", "tenant"):
+        for tabla in (
+            "auditoria",
+            "cobertura_os",
+            "prestacion",
+            "sillon",
+            "refresh_token",
+            "token_gestion",
+            "usuario",
+            "tenant",
+        ):
             await ses.execute(text(f"DELETE FROM {tabla}"))
         await ses.commit()
     await engine.dispose()
@@ -157,8 +169,8 @@ def app_factory(
 async def api(
     app_factory: Callable[..., FastAPI],
 ) -> AsyncGenerator[httpx.AsyncClient, None]:
-    """Cliente HTTP contra los routers reales de auth y usuarios."""
-    app = app_factory(auth.router, usuarios.router)
+    """Cliente HTTP contra los routers reales de auth, usuarios y catálogo."""
+    app = app_factory(auth.router, usuarios.router, admin_catalogo.router)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="https://test"
     ) as cliente:

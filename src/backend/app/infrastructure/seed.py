@@ -1,17 +1,20 @@
-"""Seed piloto idempotente: 1 tenant + 1 Dueño + permisos base (spec 2.5, R13).
+"""Seed piloto idempotente: 1 tenant + 1 Dueño + 1 Sillón + 5 prestaciones (spec 2.5, C-04, R13).
 
 Datos 100% ficticios e identificables como tales. Re-ejecutable sin duplicar
-(upsert por slug/email). Corre con el rol owner (DDL/seed), no con el rol app.
+(upsert por slug/email/nombre). Corre con el rol owner (DDL/seed), no con el rol app.
 """
 
 import hashlib
 import secrets
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.auditoria import Auditoria
+from app.domain.prestacion import Prestacion
+from app.domain.sillon import Sillon
 from app.domain.tenant import Tenant
 from app.domain.usuario import RolUsuario, Usuario
 
@@ -48,6 +51,54 @@ DUENO_SEED = {
     "nombre": "Dueña Piloto Ficticia",
 }
 
+SILLON_SEED = {
+    "nombre": "Box 1",
+    "sucursal": "central",
+}
+
+PRESTACIONES_SEED = [
+    {
+        "nombre": "Limpieza",
+        "duracion_min": 30,
+        "precio_particular": Decimal("15000.00"),
+        "requiere_sena": False,
+        "monto_sena": None,
+        "invasiva": False,
+    },
+    {
+        "nombre": "Consulta",
+        "duracion_min": 20,
+        "precio_particular": Decimal("10000.00"),
+        "requiere_sena": False,
+        "monto_sena": None,
+        "invasiva": False,
+    },
+    {
+        "nombre": "Arreglo",
+        "duracion_min": 45,
+        "precio_particular": Decimal("25000.00"),
+        "requiere_sena": False,
+        "monto_sena": None,
+        "invasiva": False,
+    },
+    {
+        "nombre": "Endodoncia",
+        "duracion_min": 60,
+        "precio_particular": Decimal("50000.00"),
+        "requiere_sena": True,
+        "monto_sena": Decimal("15000.00"),
+        "invasiva": True,
+    },
+    {
+        "nombre": "Extracción",
+        "duracion_min": 45,
+        "precio_particular": Decimal("35000.00"),
+        "requiere_sena": True,
+        "monto_sena": Decimal("10000.00"),
+        "invasiva": True,
+    },
+]
+
 
 def _hash_dev(password: str) -> str:
     """Hash de desarrollo (pbkdf2 stdlib). C-03 define el esquema auth final."""
@@ -57,7 +108,7 @@ def _hash_dev(password: str) -> str:
 
 
 async def ejecutar_seed(session: AsyncSession) -> dict[str, int]:
-    """Ejecuta el seed. Devuelve conteos {tenants, usuarios} finales."""
+    """Ejecuta el seed piloto. Devuelve conteos {tenants, duenos, sillones, prestaciones}."""
     tenant = (
         await session.execute(select(Tenant).where(Tenant.slug == TENANT_SEED["slug"]))
     ).scalar_one_or_none()
@@ -104,6 +155,52 @@ async def ejecutar_seed(session: AsyncSession) -> dict[str, int]:
                 despues={"slug": tenant.slug, "permisos_base": PERMISOS_BASE},
             )
         )
+
+    # 1. Sillón Box 1
+    sillon = (
+        await session.execute(
+            select(Sillon).where(
+                Sillon.tenant_id == tenant.id,
+                Sillon.sucursal == SILLON_SEED["sucursal"],
+                Sillon.nombre == SILLON_SEED["nombre"],
+            )
+        )
+    ).scalar_one_or_none()
+    if sillon is None:
+        sillon = Sillon(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            nombre=SILLON_SEED["nombre"],
+            sucursal=SILLON_SEED["sucursal"],
+            activo=True,
+        )
+        session.add(sillon)
+        await session.flush()
+
+    # 2. 5 prestaciones base
+    for p_seed in PRESTACIONES_SEED:
+        prestacion = (
+            await session.execute(
+                select(Prestacion).where(
+                    Prestacion.tenant_id == tenant.id,
+                    Prestacion.nombre == p_seed["nombre"],
+                )
+            )
+        ).scalar_one_or_none()
+        if prestacion is None:
+            prestacion = Prestacion(
+                id=uuid.uuid4(),
+                tenant_id=tenant.id,
+                nombre=str(p_seed["nombre"]),
+                duracion_min=int(p_seed["duracion_min"]),  # type: ignore[call-overload]
+                precio_particular=Decimal(str(p_seed["precio_particular"])),
+                requiere_sena=bool(p_seed["requiere_sena"]),
+                monto_sena=Decimal(str(p_seed["monto_sena"])) if p_seed["monto_sena"] else None,
+                invasiva=bool(p_seed["invasiva"]),
+                activa=True,
+            )
+            session.add(prestacion)
+    await session.flush()
     await session.commit()
 
     n_tenants = (await session.execute(select(func.count()).select_from(Tenant))).scalar_one()
@@ -112,7 +209,16 @@ async def ejecutar_seed(session: AsyncSession) -> dict[str, int]:
             select(func.count()).select_from(Usuario).where(Usuario.rol == RolUsuario.DUENO)
         )
     ).scalar_one()
-    return {"tenants": int(n_tenants), "duenos": int(n_duenos)}
+    n_sillones = (await session.execute(select(func.count()).select_from(Sillon))).scalar_one()
+    n_prestaciones = (
+        await session.execute(select(func.count()).select_from(Prestacion))
+    ).scalar_one()
+    return {
+        "tenants": int(n_tenants),
+        "duenos": int(n_duenos),
+        "sillones": int(n_sillones),
+        "prestaciones": int(n_prestaciones),
+    }
 
 
 async def _cli() -> None:

@@ -158,6 +158,29 @@ sesión y se audita `auth.refresh_reuso`.
 Todos los rechazos usan mensajes rioplatenses accionables y nunca revelan si un
 recurso o un usuario existe (RN-GL-02, R9).
 
+## Catálogo y configuración (C-04)
+
+Endpoints administrativos multi-tenant protegidos por `Recurso.CONFIGURACION` (`dueno`: CRUD; `recepcion` y `odontologo`: solo lectura `GET`). Bajas lógicas con `activo=False` / `activa=False` (R7) y trazabilidad completa en `auditoria`:
+
+| Método | Endpoint | Roles permitidos | Descripción |
+|---|---|---|---|
+| `GET /api/admin/sillones` | Listar sillones | Dueño, Recepción, Odontólogo | Lista sillones del consultorio (filtros `?solo_activos=true`, `?sucursal=...`). |
+| `POST /api/admin/sillones` | Crear sillón | Dueño | Alta de box (nombre único por tenant+sucursal). Audita `sillon.crear`. |
+| `PATCH /api/admin/sillones/{sillon_id}` | Actualizar sillón | Dueño | Actualización parcial. Audita `sillon.actualizar`. |
+| `DELETE /api/admin/sillones/{sillon_id}` | Desactivar sillón | Dueño | Baja lógica (`activo=False`). Audita `sillon.desactivar`. |
+| `GET /api/admin/prestaciones` | Listar prestaciones | Dueño, Recepción, Odontólogo | Lista servicios del consultorio (filtro `?solo_activas=true`). |
+| `POST /api/admin/prestaciones` | Crear prestación | Dueño | Alta con duración, precio particular, seña e invasiva. Audita `prestacion.crear`. |
+| `PATCH /api/admin/prestaciones/{prestacion_id}` | Actualizar prestación | Dueño | Actualización parcial con revalidación de seña. Audita `prestacion.actualizar`. |
+| `DELETE /api/admin/prestaciones/{prestacion_id}` | Desactivar prestación | Dueño | Baja lógica (`activa=False`). Audita `prestacion.desactivar`. |
+| `GET /api/admin/coberturas` | Listar coberturas | Dueño, Recepción, Odontólogo | Lista convenios OS con filtro `?vigente_en=...`, `?obra_social=...`, `?prestacion_id=...`. |
+| `POST /api/admin/coberturas` | Crear cobertura | Dueño | Alta de arancel/copago para prestación del consultorio. Audita `cobertura_os.crear`. |
+| `PATCH /api/admin/coberturas/{cobertura_id}` | Actualizar cobertura | Dueño | Actualización parcial y fechas de vigencia. Audita `cobertura_os.actualizar`. |
+| `DELETE /api/admin/coberturas/{cobertura_id}` | Desactivar cobertura | Dueño | Baja lógica (`activa=False`). Audita `cobertura_os.desactivar`. |
+| `GET /api/admin/tenant/politicas` | Consultar políticas | Dueño, Recepción, Odontólogo | Retorna anticipación mínima, porcentaje de seña default y horas de cancelación. |
+| `PATCH /api/admin/tenant/politicas` | Modificar políticas | Dueño | Merge parcial de políticas operativas. Audita `tenant.actualizar_politicas`. |
+
+Seed piloto base: Sillón "Box 1" (sucursal central) y 5 prestaciones base (`Limpieza` 30', `Consulta` 20', `Arreglo` 45', `Endodoncia` 60', `Extracción` 45').
+
 ## Estructura del repo
 
 ```text
@@ -216,7 +239,8 @@ secreto real vive en el repo.
 - [x] C-01 `foundation-setup` (`openspec/changes/archive/2026-10-15-c-01-solo-setup/`).
 - [x] C-02 `core-models-multitenant` (`openspec/changes/archive/2026-10-29-c-02-modelos-core/`).
 - [x] C-03 `auth-rbac-tokens` (`openspec/changes/archive/2026-10-30-c-03-auth-rbac-tokens/`).
-- [ ] En curso: C-04 `catalogo-configuracion` (propuesta lista en `openspec/changes/c-04-catalogo-configuracion/`, listo para `/opsx:apply`).
+- [x] C-04 `catalogo-configuracion` (modelos Sillon, Prestacion, CoberturaOS, migración 003, endpoints /api/admin/*, políticas y seed).
+- [ ] En cola: C-05 `pacientes-gestion` (CRUD de pacientes, antecedentes y coberturas).
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.

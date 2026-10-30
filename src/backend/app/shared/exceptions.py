@@ -95,6 +95,15 @@ class Conflicto(AppError):
         super().__init__(mensaje, 409)
 
 
+class EntidadInvalida(AppError):
+    """Regla de validación semántica violada en tiempo de ejecución: 422."""
+
+    status_code = 422
+
+    def __init__(self, mensaje: str) -> None:
+        super().__init__(mensaje, 422)
+
+
 def register_handlers(app: FastAPI) -> None:
     """Registra handlers globales: ningún error expone stack trace ni PHI."""
 
