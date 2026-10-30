@@ -213,10 +213,10 @@ secreto real vive en el repo.
 
 ## Estado
 
-- [x] C-01 `foundation-setup` + C-02 `core-models-multitenant` (ciclo 1,
-  archivado en `openspec/changes/archive/2026-10-03-c-01-foundation-core-models/`,
-  copia de entrega en `docs/changes/`).
-- [ ] Próximo: C-03 `auth-rbac-tokens` (`/opsx:propose C-03-auth-rbac-tokens`).
+- [x] C-01 `foundation-setup` (`openspec/changes/archive/2026-10-15-c-01-solo-setup/`).
+- [x] C-02 `core-models-multitenant` (`openspec/changes/archive/2026-10-29-c-02-modelos-core/`).
+- [x] C-03 `auth-rbac-tokens` (`openspec/changes/archive/2026-10-30-c-03-auth-rbac-tokens/`).
+- [ ] En curso: C-04 `catalogo-configuracion` (propuesta lista en `openspec/changes/c-04-catalogo-configuracion/`, listo para `/opsx:apply`).
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.
