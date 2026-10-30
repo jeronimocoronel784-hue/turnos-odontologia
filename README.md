@@ -181,6 +181,20 @@ Endpoints administrativos multi-tenant protegidos por `Recurso.CONFIGURACION` (`
 
 Seed piloto base: Sillón "Box 1" (sucursal central) y 5 prestaciones base (`Limpieza` 30', `Consulta` 20', `Arreglo` 45', `Endodoncia` 60', `Extracción` 45').
 
+## Pacientes y consentimiento WhatsApp (C-05)
+
+Endpoints protegidos por Recurso.PACIENTES (dueno y 
+ecepcion: CRUD; odontologo: solo lectura GET). Bajas lógicas con ctivo=False (R7), ficha clínica 1:1 inicializada en el alta, regla RN-CO-01 de opt-in WA y servicio get_or_create_paciente para reserva pública sin login:
+
+| Método | Endpoint | Roles permitidos | Descripción |
+|---|---|---|---|
+| GET /api/pacientes | Listar / buscar pacientes | Dueño, Recepción, Odontólogo | Lista pacientes del consultorio con filtros ?dni=..., ?telefono=..., ?q=... y ?solo_activos=true. |
+| GET /api/pacientes/{paciente_id} | Detalle de paciente | Dueño, Recepción, Odontólogo | Consulta paciente con su ficha clínica 1:1 vinculada. |
+| POST /api/pacientes | Crear paciente | Dueño, Recepción | Alta con validación de DNI único por consultorio (409 en colisión) e inicialización de ficha clínica. Audita paciente.crear. |
+| PATCH /api/pacientes/{paciente_id} | Actualizar paciente | Dueño, Recepción | Modificación parcial de contacto o cobertura. Audita paciente.actualizar. |
+| DELETE /api/pacientes/{paciente_id} | Desactivar paciente | Dueño, Recepción | Baja lógica (ctivo=False, R7). Audita paciente.baja. |
+| PATCH /api/pacientes/{paciente_id}/optin | Consentimiento WhatsApp | Dueño, Recepción | Actualiza optin_wa (alta o STOP según RN-CO-01). Audita paciente.optin. |
+
 ## Estructura del repo
 
 ```text
