@@ -149,7 +149,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ## FASE 1 — Acceso
 
 ### [C-03] `auth-rbac-tokens`
-- **Estado**: `[x]` cerrado (17/17 tareas verificadas contra **PostgreSQL 18 real**, 125 tests passed / 0 skipped; fallback sin Docker 122 passed / 3 skipped solo en los casos que exigen GRANTs de Postgres).
+- **Estado**: `[x]` cerrado y archivado en `openspec/changes/archive/2026-10-30-c-03-auth-rbac-tokens/` (17/17 tareas verificadas contra **PostgreSQL 18 real**, 125 tests passed / 0 skipped; fallback sin Docker 122 passed / 3 skipped solo en los casos que exigen GRANTs de Postgres). CI verde en `3933745`; specs vigentes en `openspec/specs/auth-rbac-tokens/spec.md`.
 - **Entregado**:
   - Migración 002 reversible (`refresh_token`, `token_gestion`, índices, únicos, FKs y GRANTs CRUD del rol app con su REVOKE); ciclo `upgrade head` → `downgrade -1` → `upgrade head` verificado contra Postgres.
   - `POST /api/auth/login` (access JWT + refresh opaco en cookie), `POST /api/auth/refresh` (rotación real, reúso revoca la familia), `POST /api/auth/logout` (204 idempotente), `GET /api/auth/me`.

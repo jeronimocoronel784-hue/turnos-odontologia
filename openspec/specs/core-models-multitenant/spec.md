@@ -68,7 +68,7 @@ El sistema SHALL garantizar que ninguna consulta de negocio devuelva filas de ot
 
 ### Requirement: Auditoría append-only con retención de 5 años
 
-La tabla `auditoria` SHALL aceptar solo INSERT y SELECT para el rol app (`APP_DB_ROLE`, default `turnos_app`); cualquier intento de UPDATE o DELETE con ese rol SHALL ser rechazado por la base de datos con error de permiso insuficiente, y el registro queda intacto. El enforcement vive en la migración 001 (GRANT SELECT, INSERT + REVOKE del resto, con downgrade que revierte los permisos); los registros SHALL conservarse un mínimo de 5 años. El enforcement por permiso solo rige en PostgreSQL: en otros dialectos (SQLite local) el DDL de roles se saltea y los casos de rechazo se skipean, corriendo siempre en CI con Postgres real.
+La tabla `auditoria` SHALL aceptar solo INSERT y SELECT para el rol app (`APP_DB_ROLE`, default `turnos_app`). Cualquier intento de UPDATE o DELETE con ese rol SHALL ser rechazado por la base de datos con error de permiso insuficiente y el registro queda intacto. El enforcement vive en la migración 001 (GRANT SELECT, INSERT + REVOKE del resto, con downgrade que revierte los permisos) y los registros SHALL conservarse un mínimo de 5 años.
 
 #### Scenario: UPDATE sobre auditoría rechazado (borde)
 
@@ -100,6 +100,12 @@ La tabla `auditoria` SHALL aceptar solo INSERT y SELECT para el rol app (`APP_DB
 - **Cuando** corre la suite de auditoría
 - **Entonces** los casos de rechazo UPDATE/DELETE se skipean con mensaje que indica la verificación pendiente, y el resto de la suite corre normal
 
+#### Scenario: Enforcement por permiso solo en PostgreSQL
+
+- **Dado** un entorno sin PostgreSQL con rol app restringido (SQLite local sin `APP_ROLE_URL_TEST`)
+- **Cuando** corre la suite de auditoría
+- **Entonces** el DDL de roles se saltea, los casos de rechazo UPDATE/DELETE se skipean con mensaje de verificación pendiente y el resto de la suite corre normal
+
 ### Requirement: Seed mínimo del piloto con datos ficticios
 
 El sistema SHALL proveer un seed con 1 tenant piloto, 1 usuario Dueño y la matriz de permisos base, usando SIEMPRE datos sintéticos (R13: jamás datos reales de pacientes o personas).
@@ -112,7 +118,7 @@ El sistema SHALL proveer un seed con 1 tenant piloto, 1 usuario Dueño y la matr
 
 ### Requirement: Paridad funcional de modelos core bajo el layout `src/backend/`
 
-El sistema SHALL mantener el comportamiento completo de modelos core (Tenant, Usuario, Auditoría, mixins, `BaseRepository`+`UnitOfWork`, migración 001 reversible, seed idempotente) tras el re-movido de layout del change `c-01-solo-setup`: la suite existente SHALL pasar en verde con imports `from app...` intactos, `tests/conftest.py` apuntando a `src/backend/` y `DATABASE_URL_TEST` contra Postgres real (R11). Si `c-01-solo-setup` aún no está aplicado, esta verificación SHALL considerarse bloqueada por c-01 y no se da por cumplida en el layout viejo.
+El sistema SHALL mantener el comportamiento completo de modelos core (Tenant, Usuario, Auditoría, mixins, `BaseRepository`+`UnitOfWork`, migración 001 reversible, seed idempotente) tras el re-movido de layout del change `c-01-solo-setup`, con imports `from app...` intactos, `tests/conftest.py` apuntando a `src/backend/` y `DATABASE_URL_TEST` contra Postgres real (R11).
 
 #### Scenario: Suite core en verde post-move
 
