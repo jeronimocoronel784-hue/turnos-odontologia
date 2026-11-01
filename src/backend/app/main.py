@@ -11,6 +11,7 @@ from app.api.routers import (
     health,
     lista_espera,
     pacientes,
+    presupuestos,
     reserva_publica,
     usuarios,
 )
@@ -23,6 +24,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(usuarios.router, prefix="/api")
 app.include_router(admin_catalogo.router, prefix="/api")
 app.include_router(pacientes.router, prefix="/api")
+app.include_router(presupuestos.router, prefix="/api")
 app.include_router(agenda.router, prefix="/api")
 app.include_router(clinica.router, prefix="/api")
 app.include_router(clinica.router_publico_firma)

@@ -301,7 +301,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-10] `presupuestos-planes`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado (`c-10-presupuestos-planes`) — modelos `Presupuesto`, `PresupuestoItem` y `PresupuestoTurno`, migración `009_presupuestos_planes`, cálculo en servidor de cobertura OS vs. particular (`RN-OS-01`, `R8`), guardia de consentimiento firmado al aceptar prestaciones invasivas (`RN-CL-04`), vínculo N–N con turnos y endpoints `/api/presupuestos*`.
 - **Scope**: Presupuestos y planes de tratamiento vinculados a citas
   - Modelos `Presupuesto` (estados `borrador→presentado→aceptado|rechazado→en_curso→finalizado`), `PresupuestoItem` (`a_cargo = precio*cantidad − cobertura_os`), vínculo N–N con Turnos
   - Aceptación con invasiva exige consentimiento firmado (chequea C-09, RN-CL-04); cálculo `a_cargo` con cobertura vigente o particular (RN-OS-01)

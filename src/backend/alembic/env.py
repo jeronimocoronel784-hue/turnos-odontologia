@@ -29,6 +29,11 @@ from app.domain.mensaje import Mensaje  # noqa: F401
 from app.domain.paciente import Paciente  # noqa: F401
 from app.domain.plantilla import Plantilla  # noqa: F401
 from app.domain.prestacion import Prestacion  # noqa: F401
+from app.domain.presupuesto import (  # noqa: F401
+    Presupuesto,
+    PresupuestoItem,
+    PresupuestoTurno,
+)
 from app.domain.refresh_token import RefreshToken  # noqa: F401
 from app.domain.sillon import Sillon  # noqa: F401
 from app.domain.tenant import Tenant  # noqa: F401

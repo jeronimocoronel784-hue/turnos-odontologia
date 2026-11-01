@@ -290,6 +290,15 @@ pytest.ini / .env.example / .github/workflows/ci.yml
   - `GET/POST /api/consentimientos`, `POST /api/consentimientos/{id}/firmar`, `POST /api/consentimientos/{id}/revocar` y el canal público sin login `GET/POST /firmar/{token}` registran `firma_hash` SHA-256.
   - Cuando un turno corresponde a una prestación con `invasiva = True`, la transición a `presente` exige un consentimiento firmado y no revocado (`409 Conflict` si falta).
 
+## Presupuestos y Planes de Tratamiento (C-10)
+
+- **Migración `009_presupuestos_planes`**: crea las tablas `presupuesto`, `presupuesto_item` y `presupuesto_turno` con permisos `GRANT/REVOKE` para `turnos_app`.
+- **Cálculo en Servidor (`R8`, `RN-OS-01`)**:
+  - `POST /api/presupuestos` y `POST /api/presupuestos/{id}/items` calculan `precio_unit`, `cobertura_os` (según convenio activo y vigente en `cobertura_os`) y `a_cargo = precio_unit * cantidad - cobertura_os`; sin convenio vigente se factura como particular (`cobertura_os = 0`).
+- **Consentimiento Obligatorio en Invasivas y Vínculo con Turnos (`RN-CL-04`, `US-022`)**:
+  - `POST /api/presupuestos/{id}/aceptar` exige consentimiento firmado vigente para toda prestación invasiva incluida (`409 Conflict` si falta).
+  - `GET/POST /api/presupuestos/{id}/turnos` asocia las citas al plan y pasa el presupuesto de `aceptado` a `en_curso` hasta cerrarlo en `finalizado`.
+
 ## Nota CI
 
 `.github/workflows/ci.yml` corre backend (pytest contra Postgres/Redis de
@@ -322,7 +331,8 @@ secreto real vive en el repo.
 - [x] C-07 `lista-espera` (`openspec/changes/archive/2026-11-01-c-07-lista-espera/`).
 - [x] C-08 `comunicaciones-mensajeria` (`openspec/changes/archive/2026-11-01-c-08-comunicaciones-mensajeria/`).
 - [x] C-09 `historia-clinica-odontograma` (`openspec/changes/archive/2026-11-01-c-09-historia-clinica-odontograma/`).
-- [ ] Próximos (Fase 3 / Fase 4): C-10 `presupuestos-planes`, C-11 `caja-senas`.
+- [x] C-10 `presupuestos-planes` (`openspec/changes/archive/2026-11-01-c-10-presupuestos-planes/`).
+- [ ] Próximos (Fase 4 / Fase 5): C-11 `caja-senas`, C-13 `obras-sociales-liquidacion`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.
