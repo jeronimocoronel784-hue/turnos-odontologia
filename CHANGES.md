@@ -246,7 +246,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > C-07, C-08, C-09, C-11 en paralelo tras C-06. C-10 espera a C-09 (consentimiento).
 
 ### [C-07] `lista-espera`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado (`c-07-lista-espera`) — modelo `ListaEspera`, migración `006_lista_espera`, oferta y rotación de huecos con idempotencia (`RN-LE-01/02`), aceptación en 1 clic por token opaco (`RN-LE-03`) y enganche automático al cancelar/reprogramar turnos.
 - **Scope**: Lista de espera que rellena huecos liberados (Flujo 6)
   - Modelo `ListaEspera`: orden (`prioridad`,`created_at`), estados `activa → avisada → colocada | baja`, `canal_aviso`
   - Al liberarse slot: primera entrada compatible → aviso WA/email con ventana de respuesta → acepta por token crea Turno y marca `colocada`; vence → siguiente (RN-LE-01/02/03)

@@ -28,6 +28,7 @@ import app.domain.auditoria  # noqa: F401
 import app.domain.bloqueo  # noqa: F401
 import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
+import app.domain.lista_espera  # noqa: F401
 import app.domain.paciente  # noqa: F401
 import app.domain.prestacion  # noqa: F401
 import app.domain.refresh_token  # noqa: F401
@@ -37,7 +38,15 @@ import app.domain.token_gestion  # noqa: F401
 import app.domain.turno  # noqa: F401
 import app.domain.usuario  # noqa: F401
 from app.api import deps
-from app.api.routers import admin_catalogo, agenda, auth, pacientes, reserva_publica, usuarios
+from app.api.routers import (
+    admin_catalogo,
+    agenda,
+    auth,
+    lista_espera,
+    pacientes,
+    reserva_publica,
+    usuarios,
+)
 from app.domain.auditoria import Auditoria
 from app.domain.tenant import Tenant
 from app.domain.usuario import RolUsuario, Usuario
@@ -78,6 +87,11 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
         # Limpieza: borra en orden inverso a las FK.
         for tabla in (
             "auditoria",
+            "lista_espera",
+            "turno",
+            "bloqueo",
+            "ficha_clinica",
+            "paciente",
             "cobertura_os",
             "prestacion",
             "sillon",
@@ -180,8 +194,11 @@ async def api(
         admin_catalogo.router,
         pacientes.router,
         agenda.router,
+        lista_espera.router,
+        lista_espera.router_publico,
         reserva_publica.router,
     )
+    app.include_router(lista_espera.router_publico)
     app.include_router(reserva_publica.router)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="https://test"

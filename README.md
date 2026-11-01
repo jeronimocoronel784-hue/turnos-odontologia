@@ -215,6 +215,22 @@ Núcleo operativo multi-profesional y por sillón con máquina de estados cerrad
 | `POST /mis-turnos/{token}/cancelar` | Cancelar turno | Público (token opaco) | Cancela respetando `cancelacion_hs` del consultorio (RN-AG-05). |
 | `POST /mis-turnos/{token}/reprogramar` | Reprogramar turno | Público (token opaco) | Reprograma en término creando nuevo turno vinculado y nuevo token. |
 
+## Lista de espera y oferta proactiva de huecos (C-07)
+
+Relleno automatizado de cancelaciones y reprogramaciones (**Flujo 6**) respetando orden estricto por `(prioridad ASC, created_at ASC)` (`RN-LE-01`), idempotencia por `(entrada, hueco)` con rotación automática cuando expira la ventana de respuesta (`RN-LE-02`) y colocación en 1 clic por token opaco que crea el `Turno` vinculado (`RN-LE-03`):
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|---|---|
+| `GET /api/lista-espera` | Listar lista de espera | Dueño, Recepción, Odontólogo | Lista entradas del consultorio ordenadas por `(prioridad, created_at)` con filtros `?estado=...`, `?prestacion_id=...`, `?profesional_id=...`, `?paciente_id=...`. |
+| `POST /api/lista-espera` | Crear entrada | Dueño, Recepción | Alta interna con `prioridad`, `canal_aviso` (`wa`/`email`) y emisión de `token_gestion`. Audita `lista_espera.crear`. |
+| `GET /api/lista-espera/{entrada_id}` | Detalle de entrada | Dueño, Recepción, Odontólogo | Consulta una solicitud de lista de espera del consultorio. |
+| `PATCH /api/lista-espera/{entrada_id}` | Actualizar / baja | Dueño, Recepción | Modifica `prioridad`, `canal_aviso`, `observaciones` o pasa a `baja` (rotando el hueco si estaba `avisada`). |
+| `POST /api/lista-espera/ofrecer-hueco` | Ofrecer / rotar hueco | Dueño, Recepción | Vence ofertas expiradas y avisa al primer candidato compatible sin duplicar (`idempotency_key`). Audita `lista_espera.avisar`. |
+| `POST /reservar/{slug}/lista-espera` | Anotarse online | Público (sin login) | `get_or_create_paciente` por DNI + alta en `activa` + `token_gestion` opaco. |
+| `GET /lista-espera/{token}` | Consultar estado / oferta | Público (token opaco) | Muestra estado de la solicitud y el hueco ofrecido si está `avisada`. |
+| `POST /lista-espera/{token}/aceptar` | Aceptar hueco 1-clic | Público (token opaco) | Crea el `Turno` vinculado, pasa a `colocada` (`RN-LE-03`) o devuelve `409` con `slots_alternativos` si otro ganó la carrera. |
+| `POST /lista-espera/{token}/baja` | Darse de baja | Público (token opaco) | Baja idempotente y rotación inmediata del hueco al siguiente en la fila. |
+
 ## Estructura del repo
 
 ```text
@@ -222,7 +238,7 @@ src/                  Código (backend + frontend)
   backend/            FastAPI: app/ (api/ routers+schemas, domain/ Tenant, Usuario,
                       Auditoria, mixins, application/, infrastructure/ db+seed,
                       shared/ settings+db session+logging+exceptions, workers/),
-                      alembic/ (001..005: tenant, usuario, auditoria, auth, catalogo, pacientes, agenda),
+                      alembic/ (001..006: tenant, usuario, auditoria, auth, catalogo, pacientes, agenda, lista_espera),
                       pyproject.toml / alembic.ini / Dockerfile / .dockerignore
   frontend/           React + TS PWA (src/: features/, shared/, pages/),
                       public/ (assets PWA: manifest, íconos),
@@ -276,7 +292,8 @@ secreto real vive en el repo.
 - [x] C-04 `catalogo-configuracion` (`openspec/changes/archive/2026-10-30-c-04-catalogo-configuracion/`).
 - [x] C-05 `pacientes` (`openspec/changes/archive/2026-11-01-c-05-pacientes/`).
 - [x] C-06 `agenda-turnos` (`openspec/changes/archive/2026-11-01-c-06-agenda-turnos/`).
-- [ ] Próximos (Fase 3 / Fase 4 en paralelo tras GATE 5): C-07 `lista-espera`, C-08 `comunicaciones-mensajeria`, C-09 `historia-clinica-odontograma`, C-11 `caja-senas`.
+- [x] C-07 `lista-espera` (`openspec/changes/archive/2026-11-01-c-07-lista-espera/`).
+- [ ] Próximos (Fase 3 / Fase 4 en paralelo tras GATE 5): C-08 `comunicaciones-mensajeria`, C-09 `historia-clinica-odontograma`, C-11 `caja-senas`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.

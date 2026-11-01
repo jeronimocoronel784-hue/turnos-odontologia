@@ -453,6 +453,21 @@ async def cambiar_estado_turno(
         antes=antes,
         despues=despues,
     )
+
+    if nuevo_estado in (EstadoTurno.CANCELADO, EstadoTurno.AUSENTE):
+        from app.application.lista_espera import ofrecer_hueco_lista_espera
+
+        await ofrecer_hueco_lista_espera(
+            session,
+            tenant_id=tenant_id,
+            prestacion_id=turno.prestacion_id,
+            profesional_id=turno.profesional_id,
+            sillon_id=turno.sillon_id,
+            inicio=turno.inicio,
+            fin=turno.fin,
+            actor_id=actor_id,
+        )
+
     return turno
 
 
@@ -599,6 +614,20 @@ async def reprogramar_turno(
             "nuevo_turno_id": str(nuevo_turno.id),
             "nuevo_inicio": nuevo_turno.inicio.isoformat(),
         },
+    )
+
+    from app.application.lista_espera import ofrecer_hueco_lista_espera
+
+    await ofrecer_hueco_lista_espera(
+        session,
+        tenant_id=tenant_id,
+        prestacion_id=turno_orig.prestacion_id,
+        profesional_id=turno_orig.profesional_id,
+        sillon_id=turno_orig.sillon_id,
+        inicio=turno_orig.inicio,
+        fin=turno_orig.fin,
+        ahora=ahora,
+        actor_id=actor_id,
     )
     return nuevo_turno, nuevo_token
 
