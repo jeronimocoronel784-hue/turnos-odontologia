@@ -282,7 +282,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-09] `historia-clinica-odontograma`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado (`c-09-historia-clinica-odontograma`) — modelos `Evolucion` (append-only con enmienda aditiva), `Odontograma`, `PiezaEvento` (nomenclatura FDI 11–48 y 51–85), `AdjuntoClinico` y `Consentimiento` (`firma_hash` SHA-256, presencial y `/firmar/:token`), migración `008_historia_clinica_odontograma`, RBAC `Recurso.CLINICA` (`RN-CL-03`) y bloqueo de transición a `presente` sin consentimiento firmado en prestaciones invasivas (`RN-CL-02`).
 - **Scope**: Ficha + odontograma FDI inmutable + consentimientos con firma (Flujo 3)
   - `FichaClinica` 1:1 por paciente (edición solo rol clínico genera Evolución + Auditoría; recepción solo lectura, RN-CL-01/03)
   - `Odontograma` cabecera + `PiezaEvento` (FDI 11–48, superficie enum, evento enum, `turno_id` origen); historial inmutable — cambios son nuevos eventos; adjuntos RX/fotos/PDF

@@ -429,6 +429,24 @@ async def cambiar_estado_turno(
         if prestacion is not None and prestacion.requiere_sena and not turno.sena_cobrada:
             raise Conflicto("Che, este turno requiere abonar la seña antes de poder confirmarlo.")
 
+    if nuevo_estado == EstadoTurno.PRESENTE:
+        prestacion_turno = await session.get(Prestacion, turno.prestacion_id)
+        if prestacion_turno is not None and prestacion_turno.invasiva:
+            from app.application.clinica import tiene_consentimiento_vigente
+
+            vigente = await tiene_consentimiento_vigente(
+                session,
+                tenant_id=tenant_id,
+                paciente_id=turno.paciente_id,
+                prestacion_id=turno.prestacion_id,
+                turno_id=turno.id,
+            )
+            if not vigente:
+                raise Conflicto(
+                    "Che, esta prestación es invasiva y requiere el consentimiento informado "
+                    "firmado antes de iniciar la atención."
+                )
+
     antes: dict[str, object] = {
         "estado": turno.estado,
         "sena_cobrada": turno.sena_cobrada,

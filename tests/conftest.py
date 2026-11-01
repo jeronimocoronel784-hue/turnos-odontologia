@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 # Importar modelos para que create_all los vea (SQLAlchemy 2.0 sin registry global).
 import app.domain.auditoria  # noqa: F401
 import app.domain.bloqueo  # noqa: F401
+import app.domain.clinica  # noqa: F401
 import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
 import app.domain.lista_espera  # noqa: F401
@@ -44,6 +45,7 @@ from app.api.routers import (
     admin_catalogo,
     agenda,
     auth,
+    clinica,
     comunicaciones,
     lista_espera,
     pacientes,
@@ -90,6 +92,11 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
         # Limpieza: borra en orden inverso a las FK.
         for tabla in (
             "auditoria",
+            "adjunto_clinico",
+            "pieza_evento",
+            "odontograma",
+            "evolucion",
+            "consentimiento",
             "mensaje",
             "plantilla",
             "lista_espera",
@@ -105,6 +112,8 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
             "usuario",
             "tenant",
         ):
+            if tabla == "evolucion":
+                await ses.execute(text("UPDATE evolucion SET es_correccion_de_id = NULL"))
             await ses.execute(text(f"DELETE FROM {tabla}"))
         await ses.commit()
     await engine.dispose()
@@ -199,6 +208,8 @@ async def api(
         admin_catalogo.router,
         pacientes.router,
         agenda.router,
+        clinica.router,
+        clinica.router_publico_firma,
         comunicaciones.router,
         comunicaciones.router_webhook,
         lista_espera.router,
@@ -206,6 +217,7 @@ async def api(
         reserva_publica.router,
     )
     app.include_router(comunicaciones.router_webhook)
+    app.include_router(clinica.router_publico_firma)
     app.include_router(lista_espera.router_publico)
     app.include_router(reserva_publica.router)
     async with httpx.AsyncClient(

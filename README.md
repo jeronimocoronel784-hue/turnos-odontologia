@@ -278,6 +278,18 @@ pytest.ini / .env.example / .github/workflows/ci.yml
 > leé `src/backend/` / `src/frontend/`; si menciona `src/app` plano, leé
 > `src/backend/app/`; si menciona `backend/app/tests`, leé `tests/`.
 
+## Historia Clínica, Odontograma FDI y Consentimiento Informado (C-09)
+
+- **Migración `008_historia_clinica_odontograma`**: crea las tablas `evolucion`, `odontograma`, `pieza_evento`, `adjunto_clinico` y `consentimiento` con permisos `GRANT/REVOKE` para `turnos_app`.
+- **Inmutabilidad Clínica (`R7`, `RN-CL-01`, `RN-CL-03`)**:
+  - `GET/PUT /api/pacientes/{id}/ficha`: la edición está restringida a `ODONTOLOGO` y `DUENO` (`Recurso.CLINICA`); cada cambio de anamnesis genera automáticamente una `Evolucion` y un evento en `Auditoria` sin exponer PHI (`R9`). `RECEPCION` posee permiso de solo lectura.
+  - `GET/POST /api/pacientes/{id}/evoluciones` y `GET/POST /api/pacientes/{id}/adjuntos`: evoluciones append-only con soporte de enmienda aditiva (`es_correccion_de_id`).
+- **Odontograma FDI (`RN-CL-01`)**:
+  - `GET /api/odontograma/{paciente_id}`, `POST /api/odontograma/{paciente_id}/eventos` y `GET /api/odontograma/{paciente_id}/piezas/{pieza_fdi}/historial` validan piezas permanentes (`11–48`) y deciduas (`51–85`), proyectando el estado actual por pieza/superficie sin sobrescribir el historial.
+- **Consentimiento Informado (`RN-CL-02`, `RN-SE-03`)**:
+  - `GET/POST /api/consentimientos`, `POST /api/consentimientos/{id}/firmar`, `POST /api/consentimientos/{id}/revocar` y el canal público sin login `GET/POST /firmar/{token}` registran `firma_hash` SHA-256.
+  - Cuando un turno corresponde a una prestación con `invasiva = True`, la transición a `presente` exige un consentimiento firmado y no revocado (`409 Conflict` si falta).
+
 ## Nota CI
 
 `.github/workflows/ci.yml` corre backend (pytest contra Postgres/Redis de
@@ -309,7 +321,8 @@ secreto real vive en el repo.
 - [x] C-06 `agenda-turnos` (`openspec/changes/archive/2026-11-01-c-06-agenda-turnos/`).
 - [x] C-07 `lista-espera` (`openspec/changes/archive/2026-11-01-c-07-lista-espera/`).
 - [x] C-08 `comunicaciones-mensajeria` (`openspec/changes/archive/2026-11-01-c-08-comunicaciones-mensajeria/`).
-- [ ] Próximos (Fase 3 / Fase 4 en paralelo tras GATE 5): C-09 `historia-clinica-odontograma`, C-11 `caja-senas`.
+- [x] C-09 `historia-clinica-odontograma` (`openspec/changes/archive/2026-11-01-c-09-historia-clinica-odontograma/`).
+- [ ] Próximos (Fase 3 / Fase 4): C-10 `presupuestos-planes`, C-11 `caja-senas`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.
