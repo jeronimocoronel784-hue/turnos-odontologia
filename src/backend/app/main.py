@@ -6,6 +6,7 @@ from app.api.routers import (
     admin_catalogo,
     agenda,
     auth,
+    comunicaciones,
     health,
     lista_espera,
     pacientes,
@@ -23,6 +24,9 @@ app.include_router(admin_catalogo.router, prefix="/api")
 app.include_router(pacientes.router, prefix="/api")
 app.include_router(agenda.router, prefix="/api")
 app.include_router(lista_espera.router, prefix="/api")
+app.include_router(comunicaciones.router, prefix="/api")
+app.include_router(comunicaciones.router_webhook)
+app.include_router(comunicaciones.router_webhook, prefix="/api")
 app.include_router(lista_espera.router_publico)
 app.include_router(reserva_publica.router)
 app.include_router(reserva_publica.router, prefix="/api")

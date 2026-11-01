@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.auditoria import Auditoria
+from app.domain.plantilla import CodigoPlantilla, Plantilla
 from app.domain.prestacion import Prestacion
 from app.domain.sillon import Sillon
 from app.domain.tenant import Tenant
@@ -96,6 +97,49 @@ PRESTACIONES_SEED = [
         "requiere_sena": True,
         "monto_sena": Decimal("10000.00"),
         "invasiva": True,
+    },
+]
+
+PLANTILLAS_SEED: list[dict[str, str]] = [
+    {
+        "codigo": CodigoPlantilla.CONFIRMACION_RESERVA.value,
+        "canal": "wa",
+        "cuerpo": (
+            "Hola {{paciente_nombre}}, reservamos tu turno para {{prestacion}} el "
+            "{{fecha_hora}}. Gestioná tu cita acá: {{link_gestion}}"
+        ),
+    },
+    {
+        "codigo": CodigoPlantilla.RECORDATORIO_24H.value,
+        "canal": "wa",
+        "cuerpo": (
+            "Hola {{paciente_nombre}}, te recordamos tu turno de mañana ({{fecha_hora}}) "
+            "para {{prestacion}}. Respondé CONFIRMAR o usá: {{link_gestion}}"
+        ),
+    },
+    {
+        "codigo": CodigoPlantilla.CANCELACION_TURNO.value,
+        "canal": "wa",
+        "cuerpo": (
+            "Hola {{paciente_nombre}}, tu turno del {{fecha_hora}} fue cancelado. "
+            "Si querés agendar otro horario ingresá en {{link_gestion}}"
+        ),
+    },
+    {
+        "codigo": CodigoPlantilla.HUECO_LISTA_ESPERA.value,
+        "canal": "wa",
+        "cuerpo": (
+            "Hola {{paciente_nombre}}, se liberó un horario el {{fecha_hora}} para "
+            "{{prestacion}}. Aceptalo en 1 clic acá: {{link_gestion}}"
+        ),
+    },
+    {
+        "codigo": CodigoPlantilla.SENA_PENDIENTE.value,
+        "canal": "wa",
+        "cuerpo": (
+            "Hola {{paciente_nombre}}, para confirmar tu turno de {{prestacion}} del "
+            "{{fecha_hora}} aboná la seña en: {{link_pago}}"
+        ),
     },
 ]
 
@@ -200,6 +244,33 @@ async def ejecutar_seed(session: AsyncSession) -> dict[str, int]:
                 activa=True,
             )
             session.add(prestacion)
+    await session.flush()
+
+    # 3. 5 plantillas base (C-08)
+    for pl_seed in PLANTILLAS_SEED:
+        plantilla = (
+            await session.execute(
+                select(Plantilla).where(
+                    Plantilla.tenant_id == tenant.id,
+                    Plantilla.codigo == pl_seed["codigo"],
+                    Plantilla.canal == pl_seed["canal"],
+                    Plantilla.version == 1,
+                )
+            )
+        ).scalar_one_or_none()
+        if plantilla is None:
+            session.add(
+                Plantilla(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant.id,
+                    codigo=pl_seed["codigo"],
+                    canal=pl_seed["canal"],
+                    version=1,
+                    asunto=None,
+                    cuerpo=pl_seed["cuerpo"],
+                    activa=True,
+                )
+            )
     await session.flush()
     await session.commit()
 

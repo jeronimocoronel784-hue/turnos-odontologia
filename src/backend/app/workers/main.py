@@ -13,8 +13,17 @@ from app.shared.settings import get_settings
 
 
 async def procesar_job(payload: dict[str, Any]) -> None:
-    """Procesa un job (placeholder v1: solo lo registra; jamás loguea PHI)."""
-    logger.info("Job recibido de tipo=%s", payload.get("tipo", "desconocido"))
+    """Procesa un job de la cola Redis sin exponer jamás PHI en logs (R9)."""
+    tipo = str(payload.get("tipo", "desconocido"))
+    logger.info("Job recibido de tipo=%s", tipo)
+    if tipo == "procesar_outbox":
+        from app.application.comunicaciones import procesar_outbox_pendientes
+        from app.shared.database import session_factory_for
+
+        factory = session_factory_for(get_settings().database_url)
+        async with factory() as session:
+            await procesar_outbox_pendientes(session)
+            await session.commit()
 
 
 async def run() -> None:

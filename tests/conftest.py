@@ -29,7 +29,9 @@ import app.domain.bloqueo  # noqa: F401
 import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
 import app.domain.lista_espera  # noqa: F401
+import app.domain.mensaje  # noqa: F401
 import app.domain.paciente  # noqa: F401
+import app.domain.plantilla  # noqa: F401
 import app.domain.prestacion  # noqa: F401
 import app.domain.refresh_token  # noqa: F401
 import app.domain.sillon  # noqa: F401
@@ -42,6 +44,7 @@ from app.api.routers import (
     admin_catalogo,
     agenda,
     auth,
+    comunicaciones,
     lista_espera,
     pacientes,
     reserva_publica,
@@ -87,6 +90,8 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
         # Limpieza: borra en orden inverso a las FK.
         for tabla in (
             "auditoria",
+            "mensaje",
+            "plantilla",
             "lista_espera",
             "turno",
             "bloqueo",
@@ -194,10 +199,13 @@ async def api(
         admin_catalogo.router,
         pacientes.router,
         agenda.router,
+        comunicaciones.router,
+        comunicaciones.router_webhook,
         lista_espera.router,
         lista_espera.router_publico,
         reserva_publica.router,
     )
+    app.include_router(comunicaciones.router_webhook)
     app.include_router(lista_espera.router_publico)
     app.include_router(reserva_publica.router)
     async with httpx.AsyncClient(

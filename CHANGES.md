@@ -263,7 +263,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-08] `comunicaciones-mensajeria`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado (`c-08-comunicaciones-mensajeria`) — modelos `Plantilla` (versionada) y `Mensaje` (outbox), migración `007_comunicaciones_mensajeria`, seed de 5 plantillas, respeto de `optin_wa` (`RN-CO-01`), deduplicación (`RN-CO-02`), reintentos con backoff (`RN-CO-03`), versión de plantilla en outbox (`RN-CO-04`) y webhook `POST /webhooks/whatsapp` con firma HMAC-SHA256.
 - **Scope**: Outbox + worker Redis + WA Business API + email + webhooks (Flujo 2)
   - Modelos `Mensaje` (outbox con `idempotency_key` único, estados `pendiente→enviado→entregado→leido|fallido`, `programado_para`) y `Plantilla` versionada
   - Worker Redis: toma vencidos, verifica `optin_wa`, envía por WA Cloud API, reintentos con backoff, log visible; sin doble recordatorio por (`turno`,plantilla,ventana) (RN-CO-02/03)

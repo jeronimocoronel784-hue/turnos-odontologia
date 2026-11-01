@@ -231,6 +231,21 @@ Relleno automatizado de cancelaciones y reprogramaciones (**Flujo 6**) respetand
 | `POST /lista-espera/{token}/aceptar` | Aceptar hueco 1-clic | Público (token opaco) | Crea el `Turno` vinculado, pasa a `colocada` (`RN-LE-03`) o devuelve `409` con `slots_alternativos` si otro ganó la carrera. |
 | `POST /lista-espera/{token}/baja` | Darse de baja | Público (token opaco) | Baja idempotente y rotación inmediata del hueco al siguiente en la fila. |
 
+## Comunicaciones, Outbox y Webhook de WhatsApp (C-08)
+
+Sistema de mensajería transaccional y recordatorios (**Flujo 2**) basado en el patrón **Outbox + Worker Redis**, con deduplicación estricta por `idempotency_key` (`RN-CO-02`), respeto obligatorio de `optin_wa` (`RN-CO-01`: omisión auditada si no tiene opt-in y baja inmediata ante `STOP`), reintentos con backoff exponencial (`RN-CO-03`), plantillas versionadas (`RN-CO-04`) y verificación criptográfica `X-Hub-Signature-256` (HMAC-SHA256, `R8`) en el webhook de WhatsApp:
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|---|---|
+| `GET /api/mensajes` | Listar outbox | Dueño, Recepción | Lista envíos del consultorio filtrables por `estado`, `turno_id`, `paciente_id`. |
+| `POST /api/mensajes` | Encolar mensaje | Dueño | Encola mensaje de forma idempotente renderizando la última versión activa de la plantilla. |
+| `POST /api/mensajes/{mensaje_id}/reenviar` | Reenviar mensaje | Dueño, Recepción | Reinicia intentos y despacha de inmediato un mensaje `fallido`/`omitido`. Audita `mensaje.reenviar`. |
+| `POST /api/mensajes/procesar-outbox` | Procesar pendientes | Dueño | Ejecuta el ciclo de despacho de mensajes `pendiente` vencidos del consultorio. |
+| `GET /api/plantillas` | Listar plantillas | Dueño, Recepción | Lista versiones de plantillas (`confirmacion_reserva`, `recordatorio_24h`, `cancelacion_turno`, `hueco_lista_espera`, `sena_pendiente`). |
+| `POST /api/plantillas` | Nueva versión | Dueño | Crea una nueva versión incremental `(codigo, canal, version+1)`. Audita `plantilla.crear_version`. |
+| `GET /webhooks/whatsapp` | Challenge Meta | Público (token Meta) | Verificación de suscripción del webhook (`hub.mode=subscribe` + `hub.verify_token`). |
+| `POST /webhooks/whatsapp` | Eventos WhatsApp | Público (firma HMAC) | Valida `X-Hub-Signature-256`, deduplica por `event_id`, confirma turnos (`RN-AG-08`) y procesa bajas `STOP` (`RN-CO-01`). |
+
 ## Estructura del repo
 
 ```text
@@ -238,7 +253,7 @@ src/                  Código (backend + frontend)
   backend/            FastAPI: app/ (api/ routers+schemas, domain/ Tenant, Usuario,
                       Auditoria, mixins, application/, infrastructure/ db+seed,
                       shared/ settings+db session+logging+exceptions, workers/),
-                      alembic/ (001..006: tenant, usuario, auditoria, auth, catalogo, pacientes, agenda, lista_espera),
+                      alembic/ (001..007: tenant, usuario, auditoria, auth, catalogo, pacientes, agenda, lista_espera, comunicaciones),
                       pyproject.toml / alembic.ini / Dockerfile / .dockerignore
   frontend/           React + TS PWA (src/: features/, shared/, pages/),
                       public/ (assets PWA: manifest, íconos),
@@ -293,7 +308,8 @@ secreto real vive en el repo.
 - [x] C-05 `pacientes` (`openspec/changes/archive/2026-11-01-c-05-pacientes/`).
 - [x] C-06 `agenda-turnos` (`openspec/changes/archive/2026-11-01-c-06-agenda-turnos/`).
 - [x] C-07 `lista-espera` (`openspec/changes/archive/2026-11-01-c-07-lista-espera/`).
-- [ ] Próximos (Fase 3 / Fase 4 en paralelo tras GATE 5): C-08 `comunicaciones-mensajeria`, C-09 `historia-clinica-odontograma`, C-11 `caja-senas`.
+- [x] C-08 `comunicaciones-mensajeria` (`openspec/changes/archive/2026-11-01-c-08-comunicaciones-mensajeria/`).
+- [ ] Próximos (Fase 3 / Fase 4 en paralelo tras GATE 5): C-09 `historia-clinica-odontograma`, C-11 `caja-senas`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.
