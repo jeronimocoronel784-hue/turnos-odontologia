@@ -95,6 +95,18 @@ class Conflicto(AppError):
         super().__init__(mensaje, 409)
 
 
+class ConflictoDisponibilidad(Conflicto):
+    """Choque de horario en agenda o bloqueo con sugerencia de slots alternativos (RN-GL-02)."""
+
+    def __init__(
+        self,
+        mensaje: str,
+        slots_alternativos: list[dict[str, str]] | None = None,
+    ) -> None:
+        super().__init__(mensaje)
+        self.slots_alternativos: list[dict[str, str]] = slots_alternativos or []
+
+
 class EntidadInvalida(AppError):
     """Regla de validación semántica violada en tiempo de ejecución: 422."""
 
@@ -109,6 +121,14 @@ def register_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
+        if isinstance(exc, ConflictoDisponibilidad):
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "detail": exc.mensaje,
+                    "slots_alternativos": exc.slots_alternativos,
+                },
+            )
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.mensaje})
 
     @app.exception_handler(Exception)

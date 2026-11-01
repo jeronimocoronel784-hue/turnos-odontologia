@@ -183,17 +183,37 @@ Seed piloto base: Sillón "Box 1" (sucursal central) y 5 prestaciones base (`Lim
 
 ## Pacientes y consentimiento WhatsApp (C-05)
 
-Endpoints protegidos por Recurso.PACIENTES (dueno y 
-ecepcion: CRUD; odontologo: solo lectura GET). Bajas lógicas con ctivo=False (R7), ficha clínica 1:1 inicializada en el alta, regla RN-CO-01 de opt-in WA y servicio get_or_create_paciente para reserva pública sin login:
+Endpoints protegidos por `Recurso.PACIENTES` (`dueno` y `recepcion`: CRUD; `odontologo`: solo lectura `GET`). Bajas lógicas con `activo=False` (R7), ficha clínica 1:1 inicializada en el alta, regla RN-CO-01 de opt-in WA y servicio `get_or_create_paciente` para reserva pública sin login:
 
 | Método | Endpoint | Roles permitidos | Descripción |
 |---|---|---|---|
-| GET /api/pacientes | Listar / buscar pacientes | Dueño, Recepción, Odontólogo | Lista pacientes del consultorio con filtros ?dni=..., ?telefono=..., ?q=... y ?solo_activos=true. |
-| GET /api/pacientes/{paciente_id} | Detalle de paciente | Dueño, Recepción, Odontólogo | Consulta paciente con su ficha clínica 1:1 vinculada. |
-| POST /api/pacientes | Crear paciente | Dueño, Recepción | Alta con validación de DNI único por consultorio (409 en colisión) e inicialización de ficha clínica. Audita paciente.crear. |
-| PATCH /api/pacientes/{paciente_id} | Actualizar paciente | Dueño, Recepción | Modificación parcial de contacto o cobertura. Audita paciente.actualizar. |
-| DELETE /api/pacientes/{paciente_id} | Desactivar paciente | Dueño, Recepción | Baja lógica (ctivo=False, R7). Audita paciente.baja. |
-| PATCH /api/pacientes/{paciente_id}/optin | Consentimiento WhatsApp | Dueño, Recepción | Actualiza optin_wa (alta o STOP según RN-CO-01). Audita paciente.optin. |
+| `GET /api/pacientes` | Listar / buscar pacientes | Dueño, Recepción, Odontólogo | Lista pacientes del consultorio con filtros `?dni=...`, `?telefono=...`, `?q=...` y `?solo_activos=true`. |
+| `GET /api/pacientes/{paciente_id}` | Detalle de paciente | Dueño, Recepción, Odontólogo | Consulta paciente con su ficha clínica 1:1 vinculada. |
+| `POST /api/pacientes` | Crear paciente | Dueño, Recepción | Alta con validación de DNI único por consultorio (409 en colisión) e inicialización de ficha clínica. Audita `paciente.crear`. |
+| `PATCH /api/pacientes/{paciente_id}` | Actualizar paciente | Dueño, Recepción | Modificación parcial de contacto o cobertura. Audita `paciente.actualizar`. |
+| `DELETE /api/pacientes/{paciente_id}` | Desactivar paciente | Dueño, Recepción | Baja lógica (`activo=False`, R7). Audita `paciente.baja`. |
+| `PATCH /api/pacientes/{paciente_id}/optin` | Consentimiento WhatsApp | Dueño, Recepción | Actualiza `optin_wa` (alta o STOP según RN-CO-01). Audita `paciente.optin`. |
+
+## Agenda y turnos (C-06)
+
+Núcleo operativo multi-profesional y por sillón con máquina de estados cerrada (`pendiente → confirmado → presente → finalizado` y ramas `cancelado | ausente | reprogramado`, RN-AG-07), anti-solapamiento de rangos `[inicio, fin)` con respuesta `409 Conflict` + `slots_alternativos` (RN-AG-01, RN-GL-02), bloqueos horarios no reservables (RN-AG-03), reprogramación 1-clic con `turno_origen_id` (RN-AG-06) y reserva/autogestión pública por token opaco (RN-SE-03):
+
+| Método | Endpoint | Acceso | Descripción |
+|---|---|---|---|
+| `GET /api/agenda` | Vista día/semana | Dueño, Recepción, Odontólogo | Turnos y bloqueos filtrables por `desde`, `hasta`, `profesional_id`, `sillon_id` y `estado`. |
+| `POST /api/turnos` | Crear turno | Dueño, Recepción | Calcula `fin = inicio + duracion_min` (RN-AG-02), valida anti-solapamiento/bloqueos (o `sobreturno=true` con motivo, RN-AG-04) y emite `token_gestion`. |
+| `GET /api/turnos/{turno_id}` | Detalle de turno | Dueño, Recepción, Odontólogo | Consulta un turno del consultorio. |
+| `PATCH /api/turnos/{turno_id}/estado` | Transición de estado | Dueño, Recepción, Odontólogo | Aplica el grafo cerrado (RN-AG-07) y bloquea `confirmado` si exige seña impaga (RN-PA-01). Audita `turno.cambiar_estado`. |
+| `POST /api/turnos/{turno_id}/reprogramar` | Reprogramar 1-clic | Dueño, Recepción, Odontólogo | Pasa el turno original a `reprogramado` y crea el nuevo en `pendiente` con `turno_origen_id`. Audita `turno.reprogramar`. |
+| `GET /api/bloqueos` | Listar bloqueos | Dueño, Recepción, Odontólogo | Lista bloqueos horarios del consultorio. |
+| `POST /api/bloqueos` | Crear bloqueo | Dueño, Recepción | Bloquea rango `[desde, hasta)` para profesional y/o sillón. Audita `bloqueo.crear`. |
+| `DELETE /api/bloqueos/{bloqueo_id}` | Eliminar bloqueo | Dueño, Recepción | Elimina bloqueo y audita `bloqueo.eliminar`. |
+| `GET /reservar/{slug}` | Disponibilidad pública | Público (sin login) | Catálogo activo del consultorio y cálculo de `slots_disponibles` reales. |
+| `POST /reservar/{slug}` | Reserva online 24/7 | Público (sin login) | `get_or_create_paciente` por DNI + turno `pendiente` + `token_gestion` opaco. |
+| `GET /mis-turnos/{token}` | Ver mi turno | Público (token opaco) | Consulta del turno propio sin exponer datos de terceros. |
+| `POST /mis-turnos/{token}/confirmar` | Confirmar turno | Público (token opaco) | Confirmación idempotente (RN-AG-08); rechaza con `409` si exige seña impaga. |
+| `POST /mis-turnos/{token}/cancelar` | Cancelar turno | Público (token opaco) | Cancela respetando `cancelacion_hs` del consultorio (RN-AG-05). |
+| `POST /mis-turnos/{token}/reprogramar` | Reprogramar turno | Público (token opaco) | Reprograma en término creando nuevo turno vinculado y nuevo token. |
 
 ## Estructura del repo
 
@@ -202,14 +222,14 @@ src/                  Código (backend + frontend)
   backend/            FastAPI: app/ (api/ routers+schemas, domain/ Tenant, Usuario,
                       Auditoria, mixins, application/, infrastructure/ db+seed,
                       shared/ settings+db session+logging+exceptions, workers/),
-                      alembic/ (001: tenant, usuario, auditoria),
+                      alembic/ (001..005: tenant, usuario, auditoria, auth, catalogo, pacientes, agenda),
                       pyproject.toml / alembic.ini / Dockerfile / .dockerignore
   frontend/           React + TS PWA (src/: features/, shared/, pages/),
                       public/ (assets PWA: manifest, íconos),
                       Dockerfile.frontend / nginx.conf,
                       package.json / vite.config.ts / tsconfig.json / tailwind.config.js /
                       postcss.config.js / index.html
-tests/                Suite pytest contra DB real (conftest + 8 módulos test_*)
+tests/                Suite pytest contra DB real (conftest + módulos test_*)
 db/init/              Rol `turnos_app` restringido (init de Postgres)
 docker-compose.yml    api + postgres + redis + worker + migrar + mailhog
 docs/                 Documentación adicional e informes de discovery
@@ -254,7 +274,9 @@ secreto real vive en el repo.
 - [x] C-02 `core-models-multitenant` (`openspec/changes/archive/2026-10-29-c-02-modelos-core/`).
 - [x] C-03 `auth-rbac-tokens` (`openspec/changes/archive/2026-10-30-c-03-auth-rbac-tokens/`).
 - [x] C-04 `catalogo-configuracion` (`openspec/changes/archive/2026-10-30-c-04-catalogo-configuracion/`).
-- [ ] Próximo: C-05 `pacientes` (`/opsx:propose c-05-pacientes`).
+- [x] C-05 `pacientes` (`openspec/changes/archive/2026-11-01-c-05-pacientes/`).
+- [x] C-06 `agenda-turnos` (`openspec/changes/archive/2026-11-01-c-06-agenda-turnos/`).
+- [ ] Próximos (Fase 3 / Fase 4 en paralelo tras GATE 5): C-07 `lista-espera`, C-08 `comunicaciones-mensajeria`, C-09 `historia-clinica-odontograma`, C-11 `caja-senas`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.

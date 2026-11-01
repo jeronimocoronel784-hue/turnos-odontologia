@@ -221,7 +221,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-06] `agenda-turnos`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` cerrado y archivado en `openspec/changes/archive/2026-11-01-c-06-agenda-turnos/` (6/6 tareas con Strict TDD, 22 tests nuevos — 234 passed en total, `ruff` + `mypy` estrictos limpios; specs vigentes en `openspec/specs/agenda-turnos/spec.md`).
 - **Scope**: Núcleo del sistema — máquina de estados del turno + anti-solapamiento + reserva pública
   - Modelo `Turno` con estados `pendiente → confirmado → presente → finalizado` y ramas `cancelado|ausente|reprogramado`; `token_gestion` único; `sobreturno` bool + motivo; `fin = inicio + duracion_prestacion` (RN-AG-01/02/04/07)
   - Modelo `Bloqueo` (profesional/sillón, desde/hasta, motivo); slots cubiertos no reservables (RN-AG-03)

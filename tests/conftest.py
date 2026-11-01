@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Importar modelos para que create_all los vea (SQLAlchemy 2.0 sin registry global).
 import app.domain.auditoria  # noqa: F401
+import app.domain.bloqueo  # noqa: F401
 import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
 import app.domain.paciente  # noqa: F401
@@ -33,9 +34,10 @@ import app.domain.refresh_token  # noqa: F401
 import app.domain.sillon  # noqa: F401
 import app.domain.tenant  # noqa: F401
 import app.domain.token_gestion  # noqa: F401
+import app.domain.turno  # noqa: F401
 import app.domain.usuario  # noqa: F401
 from app.api import deps
-from app.api.routers import admin_catalogo, auth, pacientes, usuarios
+from app.api.routers import admin_catalogo, agenda, auth, pacientes, reserva_publica, usuarios
 from app.domain.auditoria import Auditoria
 from app.domain.tenant import Tenant
 from app.domain.usuario import RolUsuario, Usuario
@@ -172,7 +174,15 @@ async def api(
     app_factory: Callable[..., FastAPI],
 ) -> AsyncGenerator[httpx.AsyncClient, None]:
     """Cliente HTTP contra los routers reales de auth, usuarios y catálogo."""
-    app = app_factory(auth.router, usuarios.router, admin_catalogo.router, pacientes.router)
+    app = app_factory(
+        auth.router,
+        usuarios.router,
+        admin_catalogo.router,
+        pacientes.router,
+        agenda.router,
+        reserva_publica.router,
+    )
+    app.include_router(reserva_publica.router)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="https://test"
     ) as cliente:

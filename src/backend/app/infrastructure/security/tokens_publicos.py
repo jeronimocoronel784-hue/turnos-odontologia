@@ -87,3 +87,28 @@ async def marcar_usado(session: AsyncSession, fila: TokenGestion) -> None:
     if fila.usado_at is None:
         fila.usado_at = datetime.now(UTC)
         await session.flush()
+
+
+async def resolver_token_gestion_recurso(
+    session: AsyncSession,
+    *,
+    token: str,
+    recurso: str,
+) -> TokenGestion:
+    """Resuelve un token opaco público verificando recurso, no revocación y vigencia (RN-SE-03)."""
+    if not token or not token.strip():
+        raise NoAutenticado("Che, ese link no es válido o ya venció. Pedí uno nuevo.")
+
+    hash_buscado = hashear_token(token.strip())
+    fila = (
+        await session.execute(select(TokenGestion).where(TokenGestion.token_hash == hash_buscado))
+    ).scalar_one_or_none()
+
+    ahora = datetime.now(UTC)
+    if (
+        fila is None
+        or not coincide(token.strip(), fila.token_hash)
+        or not fila.sirve_para(recurso, fila.recurso_id, ahora)
+    ):
+        raise NoAutenticado("Che, ese link no es válido o ya venció. Pedí uno nuevo.")
+    return fila
