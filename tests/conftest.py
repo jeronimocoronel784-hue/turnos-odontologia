@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 # Importar modelos para que create_all los vea (SQLAlchemy 2.0 sin registry global).
 import app.domain.auditoria  # noqa: F401
 import app.domain.bloqueo  # noqa: F401
+import app.domain.caja  # noqa: F401
 import app.domain.clinica  # noqa: F401
 import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
@@ -46,6 +47,7 @@ from app.api.routers import (
     admin_catalogo,
     agenda,
     auth,
+    caja,
     clinica,
     comunicaciones,
     lista_espera,
@@ -93,6 +95,9 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
         yield ses
         # Limpieza: borra en orden inverso a las FK.
         for tabla in (
+            "movimiento_caja",
+            "sena",
+            "cierre_caja",
             "auditoria",
             "presupuesto_turno",
             "presupuesto_item",
@@ -214,6 +219,7 @@ async def api(
         pacientes.router,
         presupuestos.router,
         agenda.router,
+        caja.router,
         clinica.router,
         clinica.router_publico_firma,
         comunicaciones.router,

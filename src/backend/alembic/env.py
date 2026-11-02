@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.domain.auditoria import Auditoria  # noqa: F401
 from app.domain.bloqueo import Bloqueo  # noqa: F401
+from app.domain.caja import CierreCaja, MovimientoCaja, Sena  # noqa: F401
 from app.domain.clinica import (  # noqa: F401
     AdjuntoClinico,
     Consentimiento,

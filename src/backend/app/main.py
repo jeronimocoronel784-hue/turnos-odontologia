@@ -6,6 +6,7 @@ from app.api.routers import (
     admin_catalogo,
     agenda,
     auth,
+    caja,
     clinica,
     comunicaciones,
     health,
@@ -26,6 +27,7 @@ app.include_router(admin_catalogo.router, prefix="/api")
 app.include_router(pacientes.router, prefix="/api")
 app.include_router(presupuestos.router, prefix="/api")
 app.include_router(agenda.router, prefix="/api")
+app.include_router(caja.router, prefix="/api")
 app.include_router(clinica.router, prefix="/api")
 app.include_router(clinica.router_publico_firma)
 app.include_router(clinica.router_publico_firma, prefix="/api")

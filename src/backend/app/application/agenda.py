@@ -360,6 +360,19 @@ async def crear_turno(
     session.add(turno)
     await session.flush()
 
+    # RN-PA-02: una prestación que exige seña genera la seña `pendiente` del turno.
+    # Un turno reprogramado con la seña ya cobrada no genera otra (1:1 con el turno).
+    if prestacion.requiere_sena and not sena_cobrada:
+        from app.application.caja import generar_sena_pendiente
+
+        await generar_sena_pendiente(
+            session,
+            tenant_id=tenant_id,
+            turno=turno,
+            prestacion=prestacion,
+            actor_id=actor_id,
+        )
+
     token = await crear_token_gestion(
         session,
         tenant_id=tenant_id,

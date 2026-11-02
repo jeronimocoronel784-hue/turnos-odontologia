@@ -253,7 +253,8 @@ src/                  Código (backend + frontend)
   backend/            FastAPI: app/ (api/ routers+schemas, domain/ Tenant, Usuario,
                       Auditoria, mixins, application/, infrastructure/ db+seed,
                       shared/ settings+db session+logging+exceptions, workers/),
-                      alembic/ (001..007: tenant, usuario, auditoria, auth, catalogo, pacientes, agenda, lista_espera, comunicaciones),
+                      alembic/ (001..010: tenant, usuario, auditoria, auth, catalogo, pacientes,
+                      agenda, lista_espera, comunicaciones, clinica, presupuestos, caja/señas),
                       pyproject.toml / alembic.ini / Dockerfile / .dockerignore
   frontend/           React + TS PWA (src/: features/, shared/, pages/),
                       public/ (assets PWA: manifest, íconos),
@@ -299,6 +300,22 @@ pytest.ini / .env.example / .github/workflows/ci.yml
   - `POST /api/presupuestos/{id}/aceptar` exige consentimiento firmado vigente para toda prestación invasiva incluida (`409 Conflict` si falta).
   - `GET/POST /api/presupuestos/{id}/turnos` asocia las citas al plan y pasa el presupuesto de `aceptado` a `en_curso` hasta cerrarlo en `finalizado`.
 
+## Señas y Caja Diaria (C-11)
+
+- **Migración `010_caja_senas`**: crea las tablas `sena`, `cierre_caja` y `movimiento_caja` con constraints (`monto > 0`, grafo de estados, cierre completo), índices por tenant y permisos `GRANT/REVOKE` para `turnos_app`.
+- **Señas atadas al turno (`RN-PA-01/02/04`)**:
+  - Reservar un turno de una prestación con `requiere_sena = True` genera automáticamente la seña `pendiente` por `monto_sena` con vencimiento a 24 h; un turno con seña impaga no pasa a `confirmado` (`409`).
+  - `POST /api/senas/{id}/cobrar` pasa la seña a `cobrada`, acredita `turno.sena_cobrada` y registra el ingreso en el cierre abierto. Es idempotente: reintentar el cobro no duplica el movimiento.
+  - `POST /api/senas/{id}/cancelacion` aplica la política de cancelación: en término (≥ `cancelacion_hs`) → `devuelta`; fuera de término o `ausente` → retenida en `aplicada`.
+  - `POST /api/senas/{id}/vencer` vence la seña impaga, cancela el turno, libera el slot y ofrece el hueco a la lista de espera (**Flujo 1 paso 6**).
+- **Liquidación del turno (`Flujo 4`, `R8`)**:
+  - `GET /api/caja/turnos/{id}/liquidacion?obra_social=OSDE` calcula en servidor `saldo = precio_particular − cobertura_os − sena_cobrada` (con piso en cero), reutilizando el convenio vigente de `cobertura_os`.
+  - `POST /api/caja/turnos/{id}/cobrar` registra el `MovimientoCaja` por el saldo y pasa la seña `cobrada` a `aplicada`; un segundo cobro del mismo turno responde `409` (nunca duplica la plata).
+- **Caja diaria (`RN-PA-05`, `US-030`)**:
+  - `POST /api/caja/cierre` abre el cierre del día (uno por fecha y consultorio) y `POST /api/caja/movimientos` asocia cada ingreso/egreso al cierre abierto vigente (`GET /api/caja/movimientos` lista lo conciliado).
+  - `POST /api/caja/cierre/{id}/cerrar` fija `total_sistema = ingresos − egresos` y `diferencia = total_contado − total_sistema`; el cierre cerrado es **inmutable** (`409` al re-cerrarlo o al intentar imputarle movimientos nuevos).
+  - `POST /api/caja/cierre/{id}/reabrir` está reservado al rol `DUENO` (`Accion.REABRIR_CIERRE`): recepción recibe `403`; el dueño reabre con motivo obligatorio y deja `antes`/`despues` en `Auditoria` (`RN-SE-01`).
+
 ## Nota CI
 
 `.github/workflows/ci.yml` corre backend (pytest contra Postgres/Redis de
@@ -332,7 +349,8 @@ secreto real vive en el repo.
 - [x] C-08 `comunicaciones-mensajeria` (`openspec/changes/archive/2026-11-01-c-08-comunicaciones-mensajeria/`).
 - [x] C-09 `historia-clinica-odontograma` (`openspec/changes/archive/2026-11-01-c-09-historia-clinica-odontograma/`).
 - [x] C-10 `presupuestos-planes` (`openspec/changes/archive/2026-11-01-c-10-presupuestos-planes/`).
-- [ ] Próximos (Fase 4 / Fase 5): C-11 `caja-senas`, C-13 `obras-sociales-liquidacion`.
+- [x] C-11 `caja-senas` (implementado en `openspec/changes/c-11-caja-senas/`): modelos + migración `010`, casos de uso de señas/caja, endpoints `/api/senas*` y `/api/caja/*`.
+- [ ] Próximos (Fase 4 / Fase 5): C-12 `mercadopago-webhooks`, C-13 `obras-sociales-liquidacion`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.

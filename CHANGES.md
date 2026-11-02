@@ -323,14 +323,14 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > C-11 corre en paralelo con la FASE 3 (solo necesita C-06). C-12 y C-13 esperan a C-11 y C-04/C-06.
 
 ### [C-11] `caja-senas`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado (`c-11-caja-senas`) — modelos `Sena`, `MovimientoCaja` y `CierreCaja`, migración `010_caja_senas`, auto-generación de seña al reservar (`RN-PA-02`), grafo `pendiente → cobrada → aplicada | devuelta | vencida`, liquidación `saldo = precio − cobertura_os − seña` (`Flujo 4`, `R8`), cierre diario inmutable con diferencia visible y reapertura exclusiva del Dueño auditada (`RN-PA-05`, `RN-SE-01`), endpoints `/api/senas*` y `/api/caja/*` con RBAC `Recurso.CAJA` + `Accion.REABRIR_CIERRE`. Tests: `tests/test_caja_negocio.py` (28) y `tests/test_caja_api.py` (9).
 - **Scope**: Caja diaria + señas atadas al turno (sin MP — eso es C-12)
   - Modelo `Seña`: 1 activa por turno, estados `pendiente→cobrada→aplicada|devuelta` + `vencida`; turno con seña exigible impaga no confirma (RN-PA-01/02/04)
   - Modelos `MovimientoCaja` (ingreso/egreso, medio efectivo/débito/crédito/transf/mp, vínculo turno/cobro) y `CierreCaja` (total sistema vs contado, diferencia visible, inmutable cerrado; reapertura solo Dueño + Auditoría)
   - Reserva con `requiere_sena` auto-genera Seña `pendiente` con vencimiento; vencida impaga → turno cancelado + slot liberado + aviso a lista de espera (Flujo 1 paso 6)
   - Cálculo al cobrar: `precio − cobertura_OS − seña_cobrada = saldo` (Flujo 4)
   - Endpoints: `/api/senas`, `/api/caja/movimientos`, `/api/caja/cierre` (abrir/cerrar/reabrir)
-  - Migración 009: tablas `sena`, `movimiento_caja`, `cierre_caja`
+  - Migración 010: tablas `sena`, `movimiento_caja`, `cierre_caja`
   - Tests: grafo de seña, cancelación en/fuera de término (devuelta vs retenida/aplicada), cierre inmutable, reapertura solo Dueño auditada
 - **Dependencias**: C-06
 - **Governance**: CRITICO
