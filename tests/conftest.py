@@ -56,6 +56,7 @@ from app.api.routers import (
     presupuestos,
     reserva_publica,
     usuarios,
+    webhooks_mercadopago,
 )
 from app.domain.auditoria import Auditoria
 from app.domain.tenant import Tenant
@@ -164,6 +165,8 @@ def settings_test() -> Settings:
         bcrypt_rounds=4,
         login_rate_limit=5,
         login_rate_window_s=60,
+        mp_access_token="TEST-MP-ACCESS-TOKEN",
+        mp_webhook_secret="secreto-mp-test",
     )
 
 
@@ -226,11 +229,13 @@ async def api(
         clinica.router_publico_firma,
         comunicaciones.router,
         comunicaciones.router_webhook,
+        webhooks_mercadopago.router,
         lista_espera.router,
         lista_espera.router_publico,
         reserva_publica.router,
     )
     app.include_router(comunicaciones.router_webhook)
+    app.include_router(webhooks_mercadopago.router_webhook)
     app.include_router(clinica.router_publico_firma)
     app.include_router(lista_espera.router_publico)
     app.include_router(reserva_publica.router)

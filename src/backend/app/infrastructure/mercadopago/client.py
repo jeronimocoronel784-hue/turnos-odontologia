@@ -3,7 +3,8 @@
 Cumple:
 - RN-SE-04: secretos y credenciales de MP nunca hardcodeados en código.
 - Verificación de cabecera `x-signature` (HMAC-SHA256) con protección contra replay attacks.
-- Generación de preferencias con `external_reference` atada a la seña y fecha de expiración sincronizada.
+- Generación de preferencias con `external_reference` atada a la seña y fecha de
+  expiración sincronizada.
 """
 
 import hashlib
@@ -102,7 +103,7 @@ class MercadoPagoClient:
         vence_at: datetime,
         paciente_email: str | None = None,
     ) -> PreferenciaRead:
-        """Crea una preferencia de pago con external_reference igual a sena_id y vencimiento estricto."""
+        """Crea la preferencia con `external_reference = sena_id` y vencimiento estricto."""
         pref_id = f"pref_{uuid.uuid4().hex[:12]}"
         init_point = f"https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id={pref_id}"
         sandbox_init_point = (

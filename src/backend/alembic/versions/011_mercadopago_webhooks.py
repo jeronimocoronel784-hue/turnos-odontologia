@@ -82,9 +82,7 @@ def upgrade() -> None:
     )
 
     if es_pg:
-        op.execute(
-            "GRANT SELECT, INSERT, UPDATE ON TABLE cobro_mp TO turnos_app"
-        )
+        op.execute("GRANT SELECT, INSERT, UPDATE ON TABLE cobro_mp TO turnos_app")
 
 
 def downgrade() -> None:
@@ -92,9 +90,7 @@ def downgrade() -> None:
     es_pg = bind.dialect.name == "postgresql"
 
     if es_pg:
-        op.execute(
-            "REVOKE ALL PRIVILEGES ON TABLE cobro_mp FROM turnos_app"
-        )
+        op.execute("REVOKE ALL PRIVILEGES ON TABLE cobro_mp FROM turnos_app")
 
     op.drop_index("ix_cobro_mp_tenant_conciliacion", table_name="cobro_mp")
     op.drop_index("ix_cobro_mp_payment_id", table_name="cobro_mp")

@@ -14,12 +14,30 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.schemas_caja import SenaCobrarInput
+from app.application.agenda import crear_turno
+from app.application.caja import cobrar_sena
+from app.application.mercadopago import (
+    crear_preferencia_para_sena,
+    resolver_sena_por_external_reference,
+)
+from app.domain.caja import EstadoSena, MedioPago, Sena
+from app.domain.paciente import Paciente
+from app.domain.prestacion import Prestacion
+from app.domain.sillon import Sillon
+from app.domain.tenant import Tenant
+from app.domain.turno import Turno
+from app.domain.usuario import RolUsuario, Usuario
 from app.infrastructure.mercadopago.client import (
     MercadoPagoClient,
     calcular_firma_mp,
     verificar_firma_webhook_mp,
 )
+from app.shared.exceptions import EntidadInvalida, NoEncontrado
+from app.shared.settings import Settings
 
 
 def test_verificacion_firma_hmac_valida() -> None:
@@ -142,3 +160,152 @@ async def test_crear_preferencia_mp_mock() -> None:
     assert "pref_" in pref.id
     assert "http" in pref.init_point
     assert pref.expiration_date_to == vence
+
+
+# ---------------------------------------------------------------------------
+# Servicio de aplicación: preferencia atada a una seña `pendiente` (tarea 2.1)
+# ---------------------------------------------------------------------------
+
+
+async def _sena_pendiente(
+    session: AsyncSession, tenant: Tenant
+) -> tuple[Sena, Turno, Usuario]:
+    """Crea un turno con `requiere_sena` y devuelve su seña `pendiente`."""
+    odontologo = Usuario(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        email=f"odonto-pref-{tenant.slug}@test.com",
+        nombre="Dr. Preferencia",
+        password_hash="hash-test",
+        rol=RolUsuario.ODONTOLOGO,
+        matricula="MP-60601",
+        activo=True,
+    )
+    paciente = Paciente(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        nombre="Paciente Preferencia",
+        dni=f"45{uuid.uuid4().int % 10**7:07d}",
+        telefono=f"+54911666{uuid.uuid4().int % 10**6:06d}",
+        email="paciente-pref@test.com",
+        optin_wa=True,
+        activo=True,
+    )
+    sillon = Sillon(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        nombre="Box Preferencia",
+        sucursal="central",
+        activo=True,
+    )
+    prestacion = Prestacion(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        nombre="Implante con seña preferencia",
+        duracion_min=60,
+        precio_particular=Decimal("50000.00"),
+        requiere_sena=True,
+        monto_sena=Decimal("10000.00"),
+        invasiva=False,
+        activa=True,
+    )
+    session.add_all([odontologo, paciente, sillon, prestacion])
+    await session.flush()
+    turno, _ = await crear_turno(
+        session,
+        tenant_id=tenant.id,
+        paciente_id=paciente.id,
+        profesional_id=odontologo.id,
+        sillon_id=sillon.id,
+        prestacion_id=prestacion.id,
+        inicio=datetime(2026, 12, 5, 10, 0, tzinfo=UTC),
+        actor_id=odontologo.id,
+    )
+    await session.flush()
+    sena = (await session.execute(select(Sena).where(Sena.turno_id == turno.id))).scalar_one()
+    return sena, turno, odontologo
+
+
+async def test_crear_preferencia_para_sena_vincula_id_y_vencimiento(
+    session: AsyncSession,
+    tenant_a: Tenant,
+    settings_test: Settings,
+) -> None:
+    """RN-PA-02: `external_reference = sena.id` y `expiration_date_to = vence_at`."""
+    sena, _, _ = await _sena_pendiente(session, tenant_a)
+
+    pref = await crear_preferencia_para_sena(
+        session,
+        tenant_id=tenant_a.id,
+        sena_id=sena.id,
+        settings=settings_test,
+        paciente_email="paciente-pref@test.com",
+    )
+
+    assert pref.external_reference == str(sena.id)
+    assert pref.monto == Decimal("10000.00")
+    assert pref.expiration_date_to.replace(tzinfo=None) == sena.vence_at.replace(tzinfo=None)
+    assert pref.init_point.startswith("http")
+
+
+async def test_crear_preferencia_rechaza_sena_no_pendiente_o_de_otro_tenant(
+    session: AsyncSession,
+    tenant_a: Tenant,
+    tenant_b: Tenant,
+    settings_test: Settings,
+) -> None:
+    """Sólo una seña `pendiente` del tenant puede generar preferencia (RN-PA-02, R4)."""
+    sena, _, odontologo = await _sena_pendiente(session, tenant_a)
+
+    with pytest.raises(NoEncontrado):
+        await crear_preferencia_para_sena(
+            session,
+            tenant_id=tenant_b.id,
+            sena_id=sena.id,
+            settings=settings_test,
+        )
+
+    await cobrar_sena(
+        session,
+        tenant_id=tenant_a.id,
+        sena_id=sena.id,
+        datos=SenaCobrarInput(medio=MedioPago.EFECTIVO),
+        actor_id=odontologo.id,
+    )
+    await session.flush()
+
+    with pytest.raises(EntidadInvalida):
+        await crear_preferencia_para_sena(
+            session,
+            tenant_id=tenant_a.id,
+            sena_id=sena.id,
+            settings=settings_test,
+        )
+
+
+async def test_resolver_sena_por_external_reference(
+    session: AsyncSession,
+    tenant_a: Tenant,
+) -> None:
+    """El webhook resuelve la seña por `external_reference` y deriva el tenant de ella."""
+    sena, turno, _ = await _sena_pendiente(session, tenant_a)
+
+    resuelto = await resolver_sena_por_external_reference(session, str(sena.id))
+    assert resuelto is not None
+    sena_resuelta, turno_resuelto = resuelto
+    assert sena_resuelta.id == sena.id
+    assert sena_resuelta.tenant_id == tenant_a.id
+    assert turno_resuelto.id == turno.id
+
+    assert await resolver_sena_por_external_reference(session, str(uuid.uuid4())) is None
+    assert await resolver_sena_por_external_reference(session, "no-es-un-uuid") is None
+    assert await resolver_sena_por_external_reference(session, None) is None
+
+
+async def test_sena_pendiente_arranca_en_estado_pendiente(
+    session: AsyncSession,
+    tenant_a: Tenant,
+) -> None:
+    """Guard de regresión: el helper de test realmente crea la seña `pendiente`."""
+    sena, _, _ = await _sena_pendiente(session, tenant_a)
+    assert sena.estado == EstadoSena.PENDIENTE.value

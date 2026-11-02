@@ -244,6 +244,7 @@ async def _registrar_ingreso(
     actor_id: uuid.UUID,
     turno_id: uuid.UUID | None = None,
     sena_id: uuid.UUID | None = None,
+    cobro_mp_id: uuid.UUID | None = None,
 ) -> MovimientoCaja:
     """Crea el movimiento de ingreso y lo asocia al cierre abierto vigente (RN-PA-05, D3)."""
     cierre = await _cierre_abierto(session, tenant_id=tenant_id)
@@ -256,6 +257,39 @@ async def _registrar_ingreso(
         monto=_monto(monto),
         turno_id=turno_id,
         sena_id=sena_id,
+        cobro_mp_id=cobro_mp_id,
+        cierre_id=cierre.id if cierre is not None else None,
+        created_by=actor_id,
+    )
+    session.add(movimiento)
+    await session.flush()
+    return movimiento
+
+
+async def _registrar_egreso(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    concepto: str,
+    medio: str,
+    monto: Decimal,
+    actor_id: uuid.UUID,
+    turno_id: uuid.UUID | None = None,
+    sena_id: uuid.UUID | None = None,
+    cobro_mp_id: uuid.UUID | None = None,
+) -> MovimientoCaja:
+    """Crea el egreso compensatorio (devolución) en el cierre abierto vigente (RN-PA-05)."""
+    cierre = await _cierre_abierto(session, tenant_id=tenant_id)
+    movimiento = MovimientoCaja(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        tipo=TipoMovimientoCaja.EGRESO.value,
+        concepto=concepto,
+        medio=medio,
+        monto=_monto(monto),
+        turno_id=turno_id,
+        sena_id=sena_id,
+        cobro_mp_id=cobro_mp_id,
         cierre_id=cierre.id if cierre is not None else None,
         created_by=actor_id,
     )

@@ -343,13 +343,13 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-12] `mercadopago-webhooks`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` implementado en `openspec/changes/c-12-mercadopago-webhooks/` — modelo `CobroMP` + migración `011_mercadopago_webhooks`, preferencia de pago atada a la seña (`external_reference = sena.id`, `RN-PA-02`), webhook `POST /webhooks/mercadopago` con firma HMAC-SHA256 e idempotencia por `mp_payment_id` único (`RN-PA-03`, `RN-SE-04`), mapeo `approved/pending/rejected/refunded` sobre seña/turno/caja con devolución compensatoria (`RN-PA-05`, `R7`) y conciliación periódica con endpoints `/api/pagos/mercadopago/cobros` y `/discrepancias` (`Recurso.CAJA`). Tests: `tests/test_mercadopago_cliente.py`, `tests/test_mercadopago_webhook.py` (6), `tests/test_mercadopago_conciliacion.py` (8) y `tests/test_mercadopago_api.py` (1).
 - **Scope**: Cobros Mercado Pago con idempotencia + conciliación diaria
   - Preferencia MP por seña (`external_reference = seña.id`, `expiration_date_to = vence_at`); link/QR expuesto en mensajes (C-08) y `/pagar/:token`
   - Webhook `POST /webhooks/mercadopago`: persistir payload crudo → verificar firma → procesar idempotente por `mp_payment_id` único (repetido = 200 sin efecto, RN-PA-03)
   - Mapeo estados MP → Seña/Cobro (`approved→cobrada`, `pending→pendiente`, `rejected→vencida`, `refunded→devuelta`); discrepancia monto/estado → revisión manual, nunca auto-cierre (RN-PA-05)
   - Job diario de conciliación contra API MP + vista de discrepancias; devoluciones solo vía API con motivo + auditoría
-  - Modelo `CobroMP` (`mp_payment_id` único, `estado_conciliacion`); Migración 010: tabla `cobro_mp`
+  - Modelo `CobroMP` (`mp_payment_id` único, `estado_conciliacion`); Migración `011`: tabla `cobro_mp`
   - Credenciales sandbox por tenant en config (nunca en código, RN-SE-04)
   - Tests: webhook duplicado, pago post-vencimiento (discrepancia + ofrecer aplicar/devolver), firma inválida, conciliación marca discrepancia
 - **Dependencias**: C-11

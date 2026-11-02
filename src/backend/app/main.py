@@ -15,6 +15,7 @@ from app.api.routers import (
     presupuestos,
     reserva_publica,
     usuarios,
+    webhooks_mercadopago,
 )
 from app.shared.exceptions import register_handlers
 
@@ -35,6 +36,9 @@ app.include_router(lista_espera.router, prefix="/api")
 app.include_router(comunicaciones.router, prefix="/api")
 app.include_router(comunicaciones.router_webhook)
 app.include_router(comunicaciones.router_webhook, prefix="/api")
+app.include_router(webhooks_mercadopago.router, prefix="/api")
+app.include_router(webhooks_mercadopago.router_webhook)
+app.include_router(webhooks_mercadopago.router_webhook, prefix="/api")
 app.include_router(lista_espera.router_publico)
 app.include_router(reserva_publica.router)
 app.include_router(reserva_publica.router, prefix="/api")

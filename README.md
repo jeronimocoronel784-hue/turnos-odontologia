@@ -316,6 +316,25 @@ pytest.ini / .env.example / .github/workflows/ci.yml
   - `POST /api/caja/cierre/{id}/cerrar` fija `total_sistema = ingresos − egresos` y `diferencia = total_contado − total_sistema`; el cierre cerrado es **inmutable** (`409` al re-cerrarlo o al intentar imputarle movimientos nuevos).
   - `POST /api/caja/cierre/{id}/reabrir` está reservado al rol `DUENO` (`Accion.REABRIR_CIERRE`): recepción recibe `403`; el dueño reabre con motivo obligatorio y deja `antes`/`despues` en `Auditoria` (`RN-SE-01`).
 
+## Mercado Pago (C-12)
+
+- **Migración `011_mercadopago_webhooks`**: crea `cobro_mp` con `mp_payment_id` único, `payload` crudo (`JSONB`/`JSON`), `monto > 0`, estados `estado_mp` y `estado_conciliacion` acotados por `CHECK`, índices por pago y por `(tenant_id, estado_conciliacion)` y permisos `GRANT/REVOKE` para `turnos_app`.
+- **Preferencia de pago (`RN-PA-02`)**:
+  - `crear_preferencia_para_sena` genera el checkout con `external_reference = sena.id` y `expiration_date_to = sena.vence_at`; sólo se permite sobre señas `pendiente` con vencimiento.
+  - Las credenciales salen de `Settings.mp_access_token`; el cliente acepta un `http_client` httpx inyectable y, sin transporte, opera en modo simulado para tests y sandbox offline.
+- **Webhook firmado e idempotente (`RN-PA-03`, `RN-SE-04`)**:
+  - `POST /webhooks/mercadopago` (también `/api/webhooks/mercadopago`) valida `x-signature` HMAC-SHA256 sobre `data.id`, `x-request-id` y `ts` con ventana de 10 minutos antes de tocar la base; firma inválida responde `401` y no persiste nada.
+  - El payload crudo se guarda en `cobro_mp.payload` antes de evaluar la máquina de estados. `mp_payment_id` es único: un reintento idéntico responde `200` sin duplicar movimientos y la carrera de dos requests simultáneos se resuelve por constraint + relectura.
+  - El `tenant_id` se deriva de la seña resuelta por `external_reference` (nunca del body, `R4`); si la referencia no resuelve, responde `200` ignorado sin persistir.
+- **Mapeo de estados y caja (`RN-PA-05`, `R7`, `R8`)**:
+  - `approved` consistente → seña `cobrada`, `turno.sena_cobrada = True` e ingreso `medio=mp` enlazado por `cobro_mp_id`; `pending` queda pendiente de conciliación; `rejected`/`cancelled` no acreditan dinero.
+  - `refunded` → seña `devuelta`, `sena_cobrada = False` y egreso compensatorio (el ingreso original nunca se borra). La transición `approved → refunded` se aplica una sola vez.
+  - Pagos sobre seña `vencida`, turno `cancelado`/`ausente`, monto distinto o seña ya cobrada por otro medio quedan en `discrepancia` para revisión manual, sin auto-confirmar ni cerrar caja.
+- **Conciliación y consulta (`RN-PA-05`)**:
+  - `conciliar_cobros` recorre los cobros `pendiente`, consulta MP y aplica el mismo mapeo (con scope opcional por tenant) para el job periódico.
+  - `GET /api/pagos/mercadopago/cobros` y `GET /api/pagos/mercadopago/discrepancias` filtran por `sena_id`, `turno_id`, `estado_mp`, `estado_conciliacion`, `limite` y `offset`; el motivo de cada discrepancia se deriva del estado actual de seña/turno/monto.
+  - Ambos endpoints usan `Recurso.CAJA` + `Accion.ACTUALIZAR`: Dueño y Recepción operan la conciliación (`200`), el Odontólogo recibe `403`.
+
 ## Nota CI
 
 `.github/workflows/ci.yml` corre backend (pytest contra Postgres/Redis de
@@ -350,7 +369,8 @@ secreto real vive en el repo.
 - [x] C-09 `historia-clinica-odontograma` (`openspec/changes/archive/2026-11-01-c-09-historia-clinica-odontograma/`).
 - [x] C-10 `presupuestos-planes` (`openspec/changes/archive/2026-11-01-c-10-presupuestos-planes/`).
 - [x] C-11 `caja-senas` (implementado en `openspec/changes/c-11-caja-senas/`): modelos + migración `010`, casos de uso de señas/caja, endpoints `/api/senas*` y `/api/caja/*`.
-- [ ] Próximos (Fase 4 / Fase 5): C-12 `mercadopago-webhooks`, C-13 `obras-sociales-liquidacion`.
+- [x] C-12 `mercadopago-webhooks` (implementado en `openspec/changes/c-12-mercadopago-webhooks/`): modelo `CobroMP` + migración `011`, preferencias MP, webhook firmado e idempotente, conciliación y endpoints `/api/pagos/mercadopago/*`.
+- [ ] Próximos (Fase 4 / Fase 5): C-13 `obras-sociales-liquidacion`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.
