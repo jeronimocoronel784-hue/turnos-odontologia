@@ -32,6 +32,7 @@ import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
 import app.domain.lista_espera  # noqa: F401
 import app.domain.mensaje  # noqa: F401
+import app.domain.mercadopago  # noqa: F401
 import app.domain.paciente  # noqa: F401
 import app.domain.plantilla  # noqa: F401
 import app.domain.prestacion  # noqa: F401
@@ -96,6 +97,7 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
         # Limpieza: borra en orden inverso a las FK.
         for tabla in (
             "movimiento_caja",
+            "cobro_mp",
             "sena",
             "cierre_caja",
             "auditoria",

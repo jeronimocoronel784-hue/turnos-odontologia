@@ -27,6 +27,7 @@ from app.domain.cobertura_os import CoberturaOS  # noqa: F401
 from app.domain.ficha_clinica import FichaClinica  # noqa: F401
 from app.domain.lista_espera import ListaEspera  # noqa: F401
 from app.domain.mensaje import Mensaje  # noqa: F401
+from app.domain.mercadopago import CobroMP  # noqa: F401
 from app.domain.paciente import Paciente  # noqa: F401
 from app.domain.plantilla import Plantilla  # noqa: F401
 from app.domain.prestacion import Prestacion  # noqa: F401
