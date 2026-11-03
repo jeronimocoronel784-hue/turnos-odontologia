@@ -4,32 +4,32 @@
 
 ## 1. Resolución de cobertura compartida (`D1`, `D2`, `RN-OS-01`)
 
-- [ ] 1.1 **Función pura de resolución de cobertura con `EstadoArancel`** (TDD)
+- [x] 1.1 **Función pura de resolución de cobertura con `EstadoArancel`** (TDD)
   - Crear en `src/backend/app/domain/cobertura_os.py` el enum `EstadoArancel` (`vigente`, `vencido`, `sin_cobertura`), el dataclass `ResolucionCobertura` (`cobertura_id`, `arancel`, `cobertura`, `monto_a_cargo`, `estado_arancel`, `vigencia_desde`, `vigencia_hasta`, `advertencia`) y `resolver_cobertura_desde_candidatas(...)` con la regla de D2 (vigente → último arancel con `vigencia_desde` más reciente → particular).
   - Verificar con `tests/test_cobertura_resolucion.py`: cobertura vigente aplica `min(precio, arancel)`; sin convenio → particular; arancel vencido → usa el último arancel con advertencia; cobertura futura → particular con advertencia; `cantidad > 1` multiplica cobertura y a cargo.
 
-- [ ] 1.2 **Loaders async de cobertura y adaptadores de `C-10`/`C-11` sin cambio de contrato** (TDD)
+- [x] 1.2 **Loaders async de cobertura y adaptadores de `C-10`/`C-11` sin cambio de contrato** (TDD)
   - Crear `src/backend/app/application/cobertura.py` con `resolver_cobertura_prestacion` (una prestación) y `resolver_coberturas_lote` (varias prestaciones en una sola query, sin N+1). Reemplazar el cuerpo de `calcular_montos_item_presupuesto` (`application/presupuestos.py`) por una delegación que conserve firma y tupla de retorno; `calcular_liquidacion_turno` (`application/caja.py`) queda intacta salvo el import.
   - Verificar con `tests/test_cobertura_servicio.py` (DB real en contenedor, `R11`): lookup por `obra_social` case-insensitive, aislamiento por `tenant_id`, y lote con 2 prestaciones devolviendo el mismo resultado que el lookup individual.
   - No-regresión obligatoria: `tests/test_presupuestos_negocio.py` y `tests/test_caja_negocio.py` deben pasar **sin modificaciones**.
 
-- [ ] 1.3 **Endpoint de lookup `GET /api/os/cobertura`** (TDD)
+- [x] 1.3 **Endpoint de lookup `GET /api/os/cobertura`** (TDD)
   - Crear `src/backend/app/api/schemas_liquidaciones.py` con `CoberturaLookupRead` (montos como `Decimal` serializado a string, sin PHI) y registrar el handler en el router de liquidaciones con `requiere(Recurso.LIQUIDACIONES, Accion.LEER)`; soportar `turno_id` (deriva prestación y fecha del turno) y `fecha` de referencia.
   - Verificar con `tests/test_os_cobertura_api.py`: respuesta completa en modo vigente, modo particular, `arancel_vencido = true` con advertencia; `404` para prestación de otro tenant; `422` si `turno_id` y `prestacion_id` se contradicen; `403` sin token.
 
 ## 2. Modelo de datos, migración y schemas
 
-- [ ] 2.1 **Dominio `liquidacion_os.py`: enums, grafo de estados y helpers de período** (TDD)
+- [x] 2.1 **Dominio `liquidacion_os.py`: enums, grafo de estados y helpers de período** (TDD)
   - Crear `src/backend/app/domain/liquidacion_os.py` con `EstadoLiquidacionOS` (`borrador`, `presentada`, `pagada`, `con_debitos`, `anulada`), `es_transicion_liquidacion_valida` (grafo de D4) y `periodo_valido` / `periodo_desde_fecha` / `rango_periodo` (rango UTC semiabierto).
   - Verificar con `tests/test_liquidacion_os_dominio.py`: transiciones permitidas y rechazadas (incluye `presentada → anulada` inválida y estados terminales); `periodo_desde_fecha(date(2026, 11, 30)) == "202611"`; `rango_periodo("202611")` cubre del 01/11 al 01/12 exclusivo; períodos inválidos (`"20261"`, `"202613"`, `"abc"`) rechazados.
 
-- [ ] 2.2 **Modelos `LiquidacionOS` / `LiquidacionOSDetalle` y migración reversible `012_obras_sociales_liquidacion`** (TDD)
+- [x] 2.2 **Modelos `LiquidacionOS` / `LiquidacionOSDetalle` y migración reversible `012_obras_sociales_liquidacion`** (TDD)
   - Definir los modelos con `TenantMixin`/`AuditMixin`, columnas, `CheckConstraint` e índices únicos parciales de D3/D6 en `liquidacion_os.py`.
   - Crear `src/backend/alembic/versions/012_obras_sociales_liquidacion.py` (`down_revision = "011_mercadopago_webhooks"`) con tablas, constraints, índices parciales, `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE liquidacion_os, liquidacion_detalle TO turnos_app` y `REVOKE` en `downgrade`.
   - Registrar los modelos en `src/backend/alembic/env.py` y `tests/conftest.py` (import + limpieza en orden inverso a las FK).
   - Verificar con `tests/test_migracion_012_obras_sociales_liquidacion.py`: columnas e índices esperados; que la DB rechace `estado` inválido, `periodo` de largo distinto de 6, `monto_reconocido > monto_reclamado` y débito sin motivo; round-trip `upgrade head` → `downgrade 011_mercadopago_webhooks` → `upgrade head` en SQLite; presencia de los strings de `GRANT`/`REVOKE`.
 
-- [ ] 2.3 **Schemas Pydantic v2 de liquidaciones (`R1`, `R8`)** (TDD)
+- [x] 2.3 **Schemas Pydantic v2 de liquidaciones (`R1`, `R8`)** (TDD)
   - En `src/backend/app/api/schemas_liquidaciones.py`: `LiquidacionOSCreate` (`obra_social` 1..160, `periodo` con regex `^\d{6}$`), `LiquidacionOSDebitosInput`, `ResultadoOSInput` (`resultado` debe ser `pagada`/`con_debitos`), `LiquidacionOSAnularInput` (`motivo` obligatorio), `LiquidacionOSRead`, `LiquidacionOSDetalleRead` y `BORRADOR` de exportación. Todos los inputs con `extra='forbid'` y sin campos de totales calculados.
   - Verificar con `tests/test_schemas_liquidaciones.py`: rechazo de campos extra, `periodo` inválido, `monto_reconocido` negativo o con más de 2 decimales, débito sin motivo, motivo de anulación vacío y serialización de `Decimal` como string.
 

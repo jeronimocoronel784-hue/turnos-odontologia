@@ -10,6 +10,7 @@ from app.api.routers import (
     clinica,
     comunicaciones,
     health,
+    liquidaciones,
     lista_espera,
     pacientes,
     presupuestos,
@@ -30,6 +31,7 @@ app.include_router(presupuestos.router, prefix="/api")
 app.include_router(agenda.router, prefix="/api")
 app.include_router(caja.router, prefix="/api")
 app.include_router(clinica.router, prefix="/api")
+app.include_router(liquidaciones.router, prefix="/api")
 app.include_router(clinica.router_publico_firma)
 app.include_router(clinica.router_publico_firma, prefix="/api")
 app.include_router(lista_espera.router, prefix="/api")

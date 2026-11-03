@@ -31,6 +31,7 @@ import app.domain.clinica  # noqa: F401
 import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
 import app.domain.lista_espera  # noqa: F401
+import app.domain.liquidacion_os  # noqa: F401
 import app.domain.mensaje  # noqa: F401
 import app.domain.mercadopago  # noqa: F401
 import app.domain.paciente  # noqa: F401
@@ -51,6 +52,7 @@ from app.api.routers import (
     caja,
     clinica,
     comunicaciones,
+    liquidaciones,
     lista_espera,
     pacientes,
     presupuestos,
@@ -97,6 +99,8 @@ async def session(db_url: str) -> AsyncGenerator[AsyncSession, None]:
         yield ses
         # Limpieza: borra en orden inverso a las FK.
         for tabla in (
+            "liquidacion_detalle",
+            "liquidacion_os",
             "movimiento_caja",
             "cobro_mp",
             "sena",
@@ -230,6 +234,7 @@ async def api(
         comunicaciones.router,
         comunicaciones.router_webhook,
         webhooks_mercadopago.router,
+        liquidaciones.router,
         lista_espera.router,
         lista_espera.router_publico,
         reserva_publica.router,

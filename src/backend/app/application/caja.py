@@ -32,7 +32,7 @@ from app.api.schemas_caja import (
     SenaResolverCancelacionInput,
 )
 from app.application.auditoria import registrar_auditoria
-from app.application.presupuestos import calcular_montos_item_presupuesto
+from app.application.cobertura import calcular_montos_item_presupuesto
 from app.domain.caja import (
     CierreCaja,
     EstadoCierreCaja,

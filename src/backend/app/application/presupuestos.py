@@ -13,7 +13,7 @@ import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas_presupuestos import (
@@ -26,7 +26,7 @@ from app.api.schemas_presupuestos import (
 )
 from app.application.auditoria import registrar_auditoria
 from app.application.clinica import tiene_consentimiento_vigente
-from app.domain.cobertura_os import CoberturaOS
+from app.application.cobertura import calcular_montos_item_presupuesto
 from app.domain.paciente import Paciente
 from app.domain.prestacion import Prestacion
 from app.domain.presupuesto import (
@@ -41,61 +41,16 @@ from app.shared.exceptions import Conflicto, EntidadInvalida, NoEncontrado
 
 CERO = Decimal("0.00")
 
-
-async def calcular_montos_item_presupuesto(
-    session: AsyncSession,
-    *,
-    tenant_id: uuid.UUID,
-    prestacion_id: uuid.UUID,
-    cantidad: int,
-    obra_social: str | None = None,
-    fecha_referencia: date | None = None,
-) -> tuple[Decimal, Decimal, Decimal]:
-    """Calcula `(precio_unit, cobertura_os_total, a_cargo_total)` en servidor (RN-OS-01, R8)."""
-    prestacion = (
-        await session.execute(
-            select(Prestacion).where(
-                Prestacion.id == prestacion_id,
-                Prestacion.tenant_id == tenant_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if prestacion is None:
-        raise NoEncontrado("Che, no encontramos la prestación indicada para el presupuesto.")
-
-    precio_unit = Decimal(str(prestacion.precio_particular)).quantize(Decimal("0.01"))
-    subtotal = (precio_unit * Decimal(cantidad)).quantize(Decimal("0.01"))
-
-    if not obra_social or not obra_social.strip():
-        return precio_unit, CERO, subtotal
-
-    hoy = fecha_referencia or datetime.now(UTC).date()
-    os_limpia = obra_social.strip().lower()
-
-    cobertura = (
-        await session.execute(
-            select(CoberturaOS)
-            .where(
-                CoberturaOS.tenant_id == tenant_id,
-                CoberturaOS.prestacion_id == prestacion_id,
-                CoberturaOS.activa.is_(True),
-                func.lower(CoberturaOS.obra_social) == os_limpia,
-                CoberturaOS.vigencia_desde <= hoy,
-                or_(CoberturaOS.vigencia_hasta.is_(None), CoberturaOS.vigencia_hasta >= hoy),
-            )
-            .order_by(CoberturaOS.vigencia_desde.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-
-    if cobertura is None:
-        return precio_unit, CERO, subtotal
-
-    arancel_unit = Decimal(str(cobertura.arancel)).quantize(Decimal("0.01"))
-    cobertura_unit = min(precio_unit, arancel_unit)
-    cobertura_total = (cobertura_unit * Decimal(cantidad)).quantize(Decimal("0.01"))
-    a_cargo_total = max(CERO, subtotal - cobertura_total).quantize(Decimal("0.01"))
-    return precio_unit, cobertura_total, a_cargo_total
+__all__ = [
+    "aceptar_presupuesto",
+    "agregar_item_presupuesto",
+    "calcular_montos_item_presupuesto",
+    "cambiar_estado_presupuesto",
+    "crear_presupuesto",
+    "listar_presupuestos",
+    "obtener_presupuesto",
+    "vincular_turno_a_presupuesto",
+]
 
 
 async def _armar_presupuesto_read(
