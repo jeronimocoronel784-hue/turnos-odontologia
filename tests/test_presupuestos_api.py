@@ -67,7 +67,11 @@ async def test_presupuestos_api_calculo_os_e_items(
         vigencia_hasta=date(hoy.year + 1, 12, 31),
         activa=True,
     )
-    session.add_all([paciente, prestacion, cobertura])
+    # Sin `relationship()` el unit-of-work no ordena los INSERTs: la prestación
+    # (padre) se flushEA antes que la cobertura_os (hijo) para no violar la FK.
+    session.add_all([paciente, prestacion])
+    await session.flush()
+    session.add(cobertura)
     await session.flush()
 
     headers = autorizacion(token_para(odontologo))

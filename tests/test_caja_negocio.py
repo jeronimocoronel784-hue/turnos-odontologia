@@ -144,6 +144,8 @@ async def _seed_consultorio(session: AsyncSession, tenant: Tenant) -> _Consultor
         vigencia_hasta=None,
         activa=True,
     )
+    # Sin `relationship()` el unit-of-work no ordena los INSERTs: los padres
+    # (prestaciones) se flushEAN antes que el hijo (cobertura_os) para no violar la FK.
     session.add_all(
         [
             ctx.odontologo,
@@ -151,9 +153,10 @@ async def _seed_consultorio(session: AsyncSession, tenant: Tenant) -> _Consultor
             ctx.sillon,
             ctx.prestacion_con_sena,
             ctx.prestacion_sin_sena,
-            cobertura,
         ]
     )
+    await session.flush()
+    session.add(cobertura)
     await session.flush()
     return ctx
 

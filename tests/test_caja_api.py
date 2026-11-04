@@ -85,7 +85,11 @@ async def _preparar_consultorio(
         vigencia_hasta=None,
         activa=True,
     )
-    session.add_all([paciente, sillon, prestacion, cobertura])
+    # Sin `relationship()` el unit-of-work no ordena los INSERTs: la prestación
+    # (padre) se flushEA antes que la cobertura_os (hijo) para no violar la FK.
+    session.add_all([paciente, sillon, prestacion])
+    await session.flush()
+    session.add(cobertura)
     await session.flush()
     return odontologo, paciente, sillon, prestacion
 

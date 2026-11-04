@@ -99,7 +99,11 @@ async def _preparar_contexto_presupuesto(
         vigencia_hasta=date(2026, 12, 31),
         activa=True,
     )
-    session.add_all([odontologo, paciente, sillon, prest_limpieza, prest_implante, cobertura_osde])
+    # Sin `relationship()` el unit-of-work no ordena los INSERTs: las prestaciones
+    # (padres) se flushEAN antes que la cobertura_os (hijo) para no violar la FK.
+    session.add_all([odontologo, paciente, sillon, prest_limpieza, prest_implante])
+    await session.flush()
+    session.add(cobertura_osde)
     await session.flush()
     return odontologo, paciente, sillon, prest_limpieza, prest_implante
 
