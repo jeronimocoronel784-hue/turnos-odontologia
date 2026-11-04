@@ -35,23 +35,23 @@
 
 ## 3. Casos de uso de la liquidación
 
-- [ ] 3.1 **Alta del borrador coleccionando turnos `finalizado` del período** (TDD)
+- [x] 3.1 **Alta del borrador coleccionando turnos `finalizado` del período** (TDD)
   - Implementar `generar_borrador` en `src/backend/app/application/liquidaciones.py`: buscar turnos `finalizado` con `inicio` en el rango del período, resolver cobertura en lote (D1), incluir sólo prestaciones con convenio de la OS, calcular `monto_reclamado` y `total`, devolver `turnos_sin_cobertura` y `advertencias`.
   - Verificar con `tests/test_liquidaciones_negocio.py`: incluye sólo los finalizados del período; excluye `pendiente`/`confirmado`/`presente`/`cancelado`/`ausente`/`reprogramado`; excluye turnos de otro período; informa turnos sin cobertura; `422` sin turnos; `409` si ya existe borrador de la misma OS/período; `404` para prestaciones/turnos de otro tenant.
 
-- [ ] 3.2 **Registro de débitos sobre el borrador y recálculo de totales** (TDD)
+- [x] 3.2 **Registro de débitos sobre el borrador y recálculo de totales** (TDD)
   - Implementar `registrar_debitos`: validar estado `borrador`, exigir `debito_motivo` cuando hay recorte, actualizar `monto_reconocido` por `turno_id`, recalcular `total` y `total_reconocido` en servidor y auditar (`accion="liquidacion.debitos"`, `RN-SE-01`).
   - Verificar con `tests/test_liquidaciones_negocio.py`: débito con motivo actualiza totales y deja evento de auditoría sin identificadores de paciente; débito sin motivo → `422`; `monto_reconocido` mayor al reclamado → `422`; edición sobre `presentada` → `409`.
 
-- [ ] 3.3 **Presentación del borrador y registro del resultado de la OS** (TDD)
+- [x] 3.3 **Presentación del borrador y registro del resultado de la OS** (TDD)
   - Implementar `presentar_liquidacion` (`borrador → presentada`, exige ≥1 turno y fija `presentada_por`/`presentada_at`) y `registrar_resultado` (`presentada → pagada | con_debitos`, guarda reconocidos, motivos, `total_reconocido` y `resuelta_por`/`resuelta_at`), validando el grafo de D4 y la coherencia entre `resultado` y los montos.
   - Verificar con `tests/test_liquidaciones_estados.py`: cierre exitoso; borrador vacío → `422`; resultado con recortes → `con_debitos`; resultado con total reconocido → `pagada`; `resultado = pagada` con montos reconocidos menores → `422`; transición inválida (p. ej. `borrador → pagada`) → `409`; eventos de auditoría de presentación y resultado.
 
-- [ ] 3.4 **Anulación por baja lógica y liberación del turno** (TDD)
+- [x] 3.4 **Anulación por baja lógica y liberación del turno** (TDD)
   - Implementar `anular_liquidacion` (`borrador → anulada` con motivo obligatorio, `vigente = false` en todo el detalle, auditoría con `antes`/`despues`) y el flip de `vigente` a `false` al pasar a `pagada`.
   - Verificar con `tests/test_liquidaciones_estados.py`: anular borrador conserva cabecera y detalle, deja `anulada_motivo` y habilita re-liquidar el turno; `409` al anular `presentada`/`pagada`/`con_debitos`; `pagada` pone `vigente = false` en todos los detalles; no se ejecuta ningún `DELETE` físico (el detalle sigue existiendo).
 
-- [ ] 3.5 **Constraint de doble liquidación del mismo turno (`RN-OS-02`)** (TDD)
+- [x] 3.5 **Constraint de doble liquidación del mismo turno (`RN-OS-02`)** (TDD)
   - Verificar la garantía en las dos capas: rechazo `409` en el caso de uso y violación de `uq_liquidacion_detalle_turno_abierto` al insertar el detalle por segunda vez vía ORM.
   - Verificar con `tests/test_liquidaciones_unicidad.py`: dos borradores de la misma OS/período → `409` en el segundo; mismo turno en liquidaciones de OS distintas → permitido; mismo turno en períodos distintos → permitido; tras anular, el mismo turno entra en una nueva liquidación; inserción directa duplicada lanza `IntegrityError`.
 
