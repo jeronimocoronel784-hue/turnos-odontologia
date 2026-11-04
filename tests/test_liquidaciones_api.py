@@ -1,4 +1,4 @@
-"""API de liquidaciones a obras sociales (`/api/liquidaciones`, C-13, tarea 4.1).
+"""API de liquidaciones a obras sociales (`/api/liquidaciones`, C-13, tarea 4.1 + Bloque E).
 
 Verifica:
 1. Ciclo completo por HTTP: alta del borrador, débitos, presentación, resultado y anulación
@@ -7,6 +7,8 @@ Verifica:
 3. R4: cross-tenant responde 404 sin filtrar existencia y `tenant_id` en el body se rechaza.
 4. Contrato: `409` por doble borrador, `422` por período inválido y `detalles` con
    `arancel_vencido` por fila (D2).
+5. Bloque E: `409` (nunca 500) ante una carrera de altas, `422` con el detalle de los turnos
+   faltantes, contrato del alta sin `fecha_referencia` y confirmación de la transacción.
 """
 
 import uuid
@@ -16,15 +18,20 @@ from decimal import Decimal
 
 import httpx
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.application.liquidaciones import TIENE_TURNOS_SIN_COBERTURA
 from app.domain.cobertura_os import CoberturaOS
+from app.domain.liquidacion_os import LiquidacionOS
 from app.domain.paciente import Paciente
 from app.domain.prestacion import Prestacion
 from app.domain.sillon import Sillon
 from app.domain.tenant import Tenant
 from app.domain.turno import EstadoTurno, OrigenTurno, Turno
 from app.domain.usuario import RolUsuario, Usuario
+from app.shared.database import create_engine_for
 
 URL = "/api/liquidaciones"
 
@@ -43,6 +50,7 @@ class _Consultorio:
         self.sillon: Sillon
         self.prestacion: Prestacion
         self.prestacion_vencida: Prestacion
+        self.prestacion_sin_convenio: Prestacion
 
 
 async def _seed_consultorio(
@@ -90,7 +98,27 @@ async def _seed_consultorio(
         invasiva=False,
         activa=True,
     )
-    session.add_all([ctx.paciente, ctx.sillon, ctx.prestacion, ctx.prestacion_vencida])
+    ctx.prestacion_sin_convenio = Prestacion(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        nombre=f"Consulta particular {tenant.slug}",
+        duracion_min=30,
+        precio_particular=Decimal("15000.00"),
+        requiere_sena=False,
+        invasiva=False,
+        activa=True,
+    )
+    # R11: los padres se insertan y confirman antes que los hijos (Postgres aplica las FK).
+    session.add_all(
+        [
+            ctx.paciente,
+            ctx.sillon,
+            ctx.prestacion,
+            ctx.prestacion_vencida,
+            ctx.prestacion_sin_convenio,
+        ]
+    )
+    await session.flush()
     session.add_all(
         [
             CoberturaOS(
@@ -251,6 +279,8 @@ async def test_ciclo_completo_por_api_hasta_anular_el_siguiente_borrador(
     assert resultado.json()["estado"] == "con_debitos"
     assert _dec(resultado.json()["total_reconocido"]) == Decimal("85000.00")
     assert resultado.json()["resuelta_por"] == str(recepcion.id)
+    # El saldo pendiente viaja en la respuesta de la API (D4/D10).
+    assert _dec(resultado.json()["saldo_debito"]) == Decimal("5000.00")
 
     # 6. Segundo borrador (diciembre) anulado por baja lógica, sin borrar el detalle (R7).
     segundo = await _borrador_por_api(api, headers, periodo="202612")
@@ -588,3 +618,180 @@ async def test_alta_sin_turnos_finalizados_en_el_periodo_responde_422(
     )
 
     assert respuesta.status_code == 422, respuesta.text
+
+
+# ---------------------------------------------------------------------------
+# Bloque E: contrato del alta, carreras, resultado incompleto y persistencia
+# ---------------------------------------------------------------------------
+
+
+async def test_el_alta_rechaza_fecha_referencia_con_422(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+) -> None:
+    """E.8/D1: el alta sólo acepta `{obra_social, periodo}`; la fecha vive en el lookup."""
+    recepcion = await crear_usuario(
+        tenant=tenant_a,
+        email="recepcion-fecha-referencia@consultorio.test",
+        rol=RolUsuario.RECEPCION,
+    )
+    headers = autorizacion(token_para(recepcion))
+    ctx = await _seed_consultorio(session, tenant_a, crear_usuario)
+    await _turno(session, tenant_a, ctx, inicio=_noviembre(9))
+
+    respuesta = await api.post(
+        URL,
+        headers=headers,
+        json={"obra_social": "OSDE", "periodo": "202611", "fecha_referencia": "2026-11-10"},
+    )
+
+    assert respuesta.status_code == 422, respuesta.text
+    # Y el alta sin `fecha_referencia` funciona: la cobertura se resuelve por día de atención.
+    creada = await _borrador_por_api(api, headers)
+    assert creada["estado"] == "borrador"
+
+
+async def test_alta_concurrente_devuelve_409_y_no_500(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """E.3/D11: una carrera contra el índice único se traduce a 409, nunca a 500."""
+    recepcion = await crear_usuario(
+        tenant=tenant_a,
+        email="recepcion-carrera-liquidacion@consultorio.test",
+        rol=RolUsuario.RECEPCION,
+    )
+    headers = autorizacion(token_para(recepcion))
+    ctx = await _seed_consultorio(session, tenant_a, crear_usuario)
+    await _turno(session, tenant_a, ctx, inicio=_noviembre(9))
+
+    async def _flush_con_conflicto() -> None:
+        raise IntegrityError(
+            "INSERT INTO liquidacion_os ...",
+            {},
+            Exception("duplicate key value violates unique constraint"),
+        )
+
+    monkeypatch.setattr(session, "flush", _flush_con_conflicto)
+
+    respuesta = await api.post(
+        URL, headers=headers, json={"obra_social": "OSDE", "periodo": "202611"}
+    )
+
+    assert respuesta.status_code == 409, respuesta.text
+    assert respuesta.json()["detail"]
+
+
+async def test_el_resultado_incompleto_responde_422_con_el_detalle_del_faltante(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+) -> None:
+    """E.6: el 422 del resultado incompleto dice cuántos turnos faltan y cuáles."""
+    recepcion = await crear_usuario(
+        tenant=tenant_a,
+        email="recepcion-resultado-incompleto@consultorio.test",
+        rol=RolUsuario.RECEPCION,
+    )
+    headers = autorizacion(token_para(recepcion))
+    ctx = await _seed_consultorio(session, tenant_a, crear_usuario)
+    await _turno(session, tenant_a, ctx, inicio=_noviembre(9))
+    await _turno(session, tenant_a, ctx, inicio=_noviembre(11))
+    creada = await _borrador_por_api(api, headers)
+    liquidacion_id = creada["id"]
+    turnos = [detalle["turno_id"] for detalle in creada["detalles"]]
+    cerrada = await api.post(f"{URL}/{liquidacion_id}/cerrar", headers=headers, json={})
+    assert cerrada.status_code == 200, cerrada.text
+
+    respuesta = await api.post(
+        f"{URL}/{liquidacion_id}/resultado",
+        headers=headers,
+        json={
+            "resultado": "pagada",
+            "detalles": [{"turno_id": turnos[0], "monto_reconocido": "30000.00"}],
+        },
+    )
+
+    assert respuesta.status_code == 422, respuesta.text
+    detalle = respuesta.json()["detail"]
+    assert "faltan 1" in detalle
+    assert turnos[1] in detalle
+
+
+async def test_el_alta_confirma_la_transaccion(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+    db_url: str,
+) -> None:
+    """E.9/N8: el router confirma la transacción: la liquidación existe para otras sesiones."""
+    recepcion = await crear_usuario(
+        tenant=tenant_a,
+        email="recepcion-commit-liquidacion@consultorio.test",
+        rol=RolUsuario.RECEPCION,
+    )
+    headers = autorizacion(token_para(recepcion))
+    ctx = await _seed_consultorio(session, tenant_a, crear_usuario)
+    await _turno(session, tenant_a, ctx, inicio=_noviembre(9))
+
+    creada = await _borrador_por_api(api, headers)
+
+    engine = create_engine_for(db_url)
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with maker() as otra:
+        fila = (
+            await otra.execute(
+                select(LiquidacionOS).where(LiquidacionOS.id == uuid.UUID(creada["id"]))
+            )
+        ).scalar_one_or_none()
+
+    assert fila is not None, "la liquidación no se persistió: el router no confirmó la transacción"
+    assert fila.estado == "borrador"
+
+
+async def test_el_alta_persiste_los_turnos_sin_cobertura_al_releer(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+) -> None:
+    """E.9/D12: el alta y la lectura devuelven el mismo `turnos_sin_cobertura`."""
+    if not TIENE_TURNOS_SIN_COBERTURA:
+        pytest.skip("la columna `turnos_sin_cobertura` la agrega la migración correctiva 013")
+
+    recepcion = await crear_usuario(
+        tenant=tenant_a, email="recepcion-sin-cobertura@consultorio.test", rol=RolUsuario.RECEPCION
+    )
+    headers = autorizacion(token_para(recepcion))
+    ctx = await _seed_consultorio(session, tenant_a, crear_usuario)
+    await _turno(session, tenant_a, ctx, inicio=_noviembre(9))
+    await _turno(
+        session,
+        tenant_a,
+        ctx,
+        inicio=_noviembre(11),
+        prestacion=ctx.prestacion_sin_convenio,
+    )
+
+    creada = await _borrador_por_api(api, headers)
+    releida = await api.get(f"{URL}/{creada['id']}", headers=headers)
+
+    assert creada["turnos_sin_cobertura"] == 1
+    assert releida.json()["turnos_sin_cobertura"] == creada["turnos_sin_cobertura"]

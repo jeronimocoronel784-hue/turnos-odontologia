@@ -97,6 +97,29 @@ def test_rango_periodo_de_diciembre_rueda_al_ano_siguiente() -> None:
     assert hasta == datetime(2027, 1, 1, tzinfo=UTC)
 
 
+def test_el_rango_de_periodo_es_sem_abierto() -> None:
+    """D5: `[primer día del período, primer día del siguiente)` — entra el inicio, no el final.
+
+    Dos períodos consecutivos comparten el borde: el turno que arranca exactamente a
+    las `00:00` del primer día del período siguiente ya es del período siguiente.
+    """
+    desde, hasta = rango_periodo("202611")
+
+    # El borde inferior está incluido: el primer instante del período entra.
+    assert desde == datetime(2026, 11, 1, 0, 0, tzinfo=UTC)
+    assert desde <= datetime(2026, 11, 1, 0, 0, tzinfo=UTC)
+    assert datetime(2026, 11, 1, 0, 0, 1, tzinfo=UTC) < hasta
+
+    # El borde superior está excluido: el último instante del período entra, el siguiente no.
+    assert datetime(2026, 11, 30, 23, 59, 59, tzinfo=UTC) < hasta
+    assert hasta == datetime(2026, 12, 1, 0, 0, tzinfo=UTC)
+
+    # Períodos consecutivos: el final de uno es el comienzo del otro (sin solapamiento).
+    siguiente_desde, siguiente_hasta = rango_periodo("202612")
+    assert hasta == siguiente_desde
+    assert siguiente_desde < siguiente_hasta
+
+
 @pytest.mark.parametrize("periodo", ["20261", "2026111", "202613", "202600", "abc", ""])
 def test_periodo_invalido_se_rechaza(periodo: str) -> None:
     """D5: sólo `yyyymm` con mes 01..12; el resto no es un período liquidable."""

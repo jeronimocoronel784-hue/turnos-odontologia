@@ -4,6 +4,8 @@ Cumple:
 - R1 / R8: schemas Pydantic v2 estrictos (`extra='forbid'`) y montos calculados en servidor.
 - R4: `tenant_id` proviene exclusivamente del JWT (`ActorAutenticado`), nunca del body/query.
 - R7: la baja de un borrador es lógica (`DELETE` cambia el estado a `anulada`).
+- N8/R3: cada mutación cierra su transacción con un `commit` explícito: sin eso la
+  liquidación no se persistía fuera del contexto de pruebas.
 - RBAC (`D8`): `Recurso.LIQUIDACIONES` — Dueño y Recepción con CRUD + exportación; el
   Odontólogo queda en sólo lectura (puede consultar la cobertura de sus turnos).
 """
@@ -118,12 +120,14 @@ async def post_liquidacion(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> LiquidacionOSRead:
     """Genera el borrador con los turnos finalizados del período y su cobertura (D5)."""
-    return await generar_borrador(
+    liquidacion = await generar_borrador(
         session,
         tenant_id=actor.tenant_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return liquidacion
 
 
 @router.get("/liquidaciones/{liquidacion_id}", response_model=LiquidacionOSRead)
@@ -146,13 +150,15 @@ async def patch_liquidacion(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> LiquidacionOSRead:
     """Registra los débitos de la OS sobre el borrador y recalcula totales (US-041, R8)."""
-    return await registrar_debitos(
+    liquidacion = await registrar_debitos(
         session,
         tenant_id=actor.tenant_id,
         liquidacion_id=liquidacion_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return liquidacion
 
 
 @router.post("/liquidaciones/{liquidacion_id}/cerrar", response_model=LiquidacionOSRead)
@@ -163,13 +169,15 @@ async def post_cerrar_liquidacion(
     datos: LiquidacionOSCerrarInput | None = None,
 ) -> LiquidacionOSRead:
     """Presenta el borrador a la obra social fijando actor y fecha (D4)."""
-    return await presentar_liquidacion(
+    liquidacion = await presentar_liquidacion(
         session,
         tenant_id=actor.tenant_id,
         liquidacion_id=liquidacion_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return liquidacion
 
 
 @router.post("/liquidaciones/{liquidacion_id}/resultado", response_model=LiquidacionOSRead)
@@ -180,13 +188,15 @@ async def post_resultado_liquidacion(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> LiquidacionOSRead:
     """Registra la respuesta de la OS: `pagada` o `con_debitos` (US-041, D4)."""
-    return await registrar_resultado(
+    liquidacion = await registrar_resultado(
         session,
         tenant_id=actor.tenant_id,
         liquidacion_id=liquidacion_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return liquidacion
 
 
 @router.delete("/liquidaciones/{liquidacion_id}", response_model=LiquidacionOSRead)
@@ -197,13 +207,15 @@ async def delete_liquidacion(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> LiquidacionOSRead:
     """Anula el borrador por baja lógica, conservando cabecera y detalle (R7, D4)."""
-    return await anular_liquidacion(
+    liquidacion = await anular_liquidacion(
         session,
         tenant_id=actor.tenant_id,
         liquidacion_id=liquidacion_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return liquidacion
 
 
 @router.get("/liquidaciones/{liquidacion_id}/exportar", response_class=Response)

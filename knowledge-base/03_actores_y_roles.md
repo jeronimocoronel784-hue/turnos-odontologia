@@ -26,12 +26,12 @@ RBAC simple rol → permisos. Un usuario tiene un rol por tenant; el Dueño pued
 | Presupuestos / planes | CRUD | CRUD | CRUD | R propio |
 | Consentimientos | CRUD | CRUD (gestionar firma) | CRUD | Firmar (por token) |
 | Caja / señas / cobros | CRUD + cierres | CRUD (sin reabrir cierres) | R (sus cobros) | Pagar seña (link MP) |
-| Liquidaciones OS | CRUD | CRUD | R | — |
+| Liquidaciones OS | CRUD + exportar | CRUD + exportar | R | — |
 | Mensajes / plantillas | CRUD | R + reenviar | — | Recibir (opt-in) |
 | Auditoría | R | — | — | — |
-| Exportación CSV/JSON | Sí | Parcial (agenda/caja) | Parcial (clínica propia) | — |
+| Exportación CSV/JSON | Sí | Parcial (agenda/caja + liquidaciones de obras sociales) | Parcial (clínica propia) | — |
 
-\* Recepción nunca edita contenido clínico; Odontólogo nunca reabre cierres de caja.
+\* Recepción nunca edita contenido clínico; Odontólogo nunca reabre cierres de caja ni exporta liquidaciones de obras sociales.
 
 ## Rutas públicas
 

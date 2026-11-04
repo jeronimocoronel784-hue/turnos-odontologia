@@ -24,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.schemas_mercadopago import PreferenciaRead
 from app.application.auditoria import registrar_auditoria
 from app.application.caja import (
-    _monto,
     _registrar_egreso,
     _registrar_ingreso,
     obtener_sena,
@@ -34,6 +33,7 @@ from app.domain.mercadopago import CobroMP, EstadoConciliacionMP, EstadoMP
 from app.domain.turno import EstadoTurno, Turno
 from app.infrastructure.mercadopago.client import MercadoPagoClient
 from app.shared.exceptions import EntidadInvalida
+from app.shared.montos import monto_2dp
 from app.shared.settings import Settings, get_settings
 
 CERO = Decimal("0.00")
@@ -79,7 +79,7 @@ def _a_decimal(valor: object, default: Decimal) -> Decimal:
     if valor is None or valor == "":
         return default
     try:
-        return _monto(valor)
+        return monto_2dp(valor)
     except (ArithmeticError, TypeError, ValueError):
         return default
 
@@ -115,7 +115,7 @@ async def crear_preferencia_para_sena(
     mp = cliente if cliente is not None else MercadoPagoClient(access_token=cfg.mp_access_token)
     return await mp.crear_preferencia(
         sena_id=sena.id,
-        monto=_monto(sena.monto),
+        monto=monto_2dp(sena.monto),
         titulo=titulo,
         vence_at=sena.vence_at,
         paciente_email=paciente_email,
@@ -211,7 +211,7 @@ def _motivo_discrepancia_aprobado(
         return "No se encontró el turno asociado a la seña"
     if turno.estado in ESTADOS_TURNO_NO_CONFIRMABLES:
         return f"Pago aprobado con el turno '{turno.estado}'"
-    if _monto(monto) != _monto(sena.monto):
+    if monto_2dp(monto) != monto_2dp(sena.monto):
         return "El monto pagado no coincide con el monto de la seña"
     if sena.estado in ESTADOS_SENA_CON_DINERO:
         if sena.mp_payment_id and sena.mp_payment_id != payment_id:
@@ -287,7 +287,7 @@ async def _confirmar_sena_con_pago(
         tenant_id=sena.tenant_id,
         concepto=CONCEPTO_SENA_MP,
         medio=MedioPago.MP.value,
-        monto=_monto(cobro.monto),
+        monto=monto_2dp(cobro.monto),
         actor_id=turno.profesional_id,
         turno_id=turno.id,
         sena_id=sena.id,
@@ -306,7 +306,7 @@ async def _confirmar_sena_con_pago(
         despues={
             "estado": sena.estado,
             "sena_cobrada": turno.sena_cobrada,
-            "monto": str(_monto(cobro.monto)),
+            "monto": str(monto_2dp(cobro.monto)),
             "medio": movimiento.medio,
             "movimiento_id": str(movimiento.id),
             "cobro_mp_id": str(cobro.id),
@@ -337,7 +337,7 @@ async def _devolver_sena_por_refund(
         tenant_id=sena.tenant_id,
         concepto=CONCEPTO_DEVOLUCION_SENA_MP,
         medio=MedioPago.MP.value,
-        monto=_monto(cobro.monto),
+        monto=monto_2dp(cobro.monto),
         actor_id=turno.profesional_id,
         turno_id=turno.id,
         sena_id=sena.id,
@@ -356,7 +356,7 @@ async def _devolver_sena_por_refund(
         despues={
             "estado": sena.estado,
             "sena_cobrada": turno.sena_cobrada,
-            "monto": str(_monto(cobro.monto)),
+            "monto": str(monto_2dp(cobro.monto)),
             "medio": movimiento.medio,
             "movimiento_id": str(movimiento.id),
             "cobro_mp_id": str(cobro.id),
@@ -434,7 +434,7 @@ async def procesar_webhook_mp(
 
     sena = resuelto[0] if resuelto is not None else None
     turno = resuelto[1] if resuelto is not None else None
-    monto_default = _monto(sena.monto) if sena is not None else CERO
+    monto_default = monto_2dp(sena.monto) if sena is not None else CERO
 
     cfg = settings if settings is not None else None
     mp = cliente
@@ -536,7 +536,7 @@ async def conciliar_cobros(
 
     for cobro in cobros:
         estado_raw: object = cobro.estado_mp
-        monto = _monto(cobro.monto)
+        monto = monto_2dp(cobro.monto)
         if cliente is not None:
             consulta = await cliente.obtener_pago(cobro.mp_payment_id)
             estado_raw = consulta.get("status", estado_raw)
@@ -544,14 +544,14 @@ async def conciliar_cobros(
 
         estado = _normalizar_estado(estado_raw)
         cobro.estado_mp = estado.value
-        cobro.monto = _monto(monto)
+        cobro.monto = monto_2dp(monto)
 
         sena = await session.get(Sena, cobro.sena_id) if cobro.sena_id else None
         turno = await session.get(Turno, cobro.turno_id) if cobro.turno_id else None
         pago = PagoMP(
             payment_id=cobro.mp_payment_id,
             estado=estado,
-            monto=_monto(monto),
+            monto=monto_2dp(monto),
             external_reference=str(sena.id) if sena is not None else None,
             preference_id=cobro.mp_preference_id,
         )
@@ -591,7 +591,7 @@ def _motivo_actual(cobro: CobroMP, sena: Sena | None, turno: Turno | None) -> st
     motivo: str | None = None
     if cobro.estado_mp == EstadoMP.APPROVED.value:
         motivo = _motivo_discrepancia_aprobado(
-            sena, turno, _monto(cobro.monto), cobro.mp_payment_id
+            sena, turno, monto_2dp(cobro.monto), cobro.mp_payment_id
         )
     elif cobro.estado_mp == EstadoMP.REFUNDED.value:
         motivo = _motivo_discrepancia_refund(sena, turno)

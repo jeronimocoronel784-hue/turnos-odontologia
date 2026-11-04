@@ -9,6 +9,7 @@ Cubre, con el glosario de `05_reglas_de_negocio.md` y `07_flujos_principales.md`
 4. Auditoría append-only de la presentación, el resultado y la anulación (RN-SE-01, R9).
 """
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -16,12 +17,13 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.schemas_liquidaciones import (
     LiquidacionOSAnularInput,
     LiquidacionOSCerrarInput,
     LiquidacionOSCreate,
+    LiquidacionOSDebitosInput,
     LiquidacionOSDetalleDebitoInput,
     LiquidacionOSRead,
     ResultadoOSInput,
@@ -31,6 +33,7 @@ from app.application.liquidaciones import (
     anular_liquidacion,
     generar_borrador,
     presentar_liquidacion,
+    registrar_debitos,
     registrar_resultado,
 )
 from app.domain.auditoria import Auditoria
@@ -46,6 +49,7 @@ from app.domain.sillon import Sillon
 from app.domain.tenant import Tenant
 from app.domain.turno import EstadoTurno, OrigenTurno, Turno
 from app.domain.usuario import RolUsuario, Usuario
+from app.shared.database import create_engine_for
 from app.shared.exceptions import Conflicto, EntidadInvalida
 
 CERO = Decimal("0.00")
@@ -205,6 +209,15 @@ async def _detalles_orm(
                 )
             )
         )
+        .scalars()
+        .all()
+    )
+
+
+async def _cantidad_liquidaciones(session: AsyncSession, tenant: Tenant) -> int:
+    """Cuántas liquidaciones tiene el consultorio (para verificar que no se crearen de más)."""
+    return len(
+        (await session.execute(select(LiquidacionOS).where(LiquidacionOS.tenant_id == tenant.id)))
         .scalars()
         .all()
     )
@@ -463,6 +476,267 @@ async def test_borrador_a_pagada_da_409(session: AsyncSession, tenant_a: Tenant)
 
 
 # ---------------------------------------------------------------------------
+# Bloque E: resultado todo-o-nada, total desde el detalle y `con_debits → pagada`
+# ---------------------------------------------------------------------------
+
+
+async def test_el_resultado_con_turno_repetido_da_422(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """D10/BLOCKER 2: un `turno_id` repetido se rechaza y no aplica ningún monto."""
+    ctx = await _seed(session, tenant_a)
+    presentada = await _presentada(session, tenant_a, ctx, turnos=2)
+    turno_id = presentada.detalles[0].turno_id
+    # `model_construct` saltea la validación del schema para llegar a la defensa en
+    # profundidad del caso de uso (el schema ya rechaza el payload en el borde).
+    datos = ResultadoOSInput.model_construct(
+        resultado="pagada",
+        observaciones=None,
+        detalles=[
+            LiquidacionOSDetalleDebitoInput(
+                turno_id=turno_id, monto_reconocido=Decimal("20000.00")
+            ),
+            LiquidacionOSDetalleDebitoInput(
+                turno_id=turno_id, monto_reconocido=Decimal("20000.00")
+            ),
+        ],
+    )
+
+    with pytest.raises(EntidadInvalida):
+        await registrar_resultado(
+            session,
+            tenant_id=tenant_a.id,
+            liquidacion_id=presentada.id,
+            datos=datos,
+            actor_id=ctx.usuario.id,
+        )
+
+    cabecera = await _estado_orm(session, tenant_a, presentada.id)
+    assert cabecera.estado == EstadoLiquidacionOS.PRESENTADA.value
+    assert cabecera.total_reconocido is None
+    detalles = await _detalles_orm(session, tenant_a, presentada.id)
+    assert all(detalle.monto_reconocido is None for detalle in detalles)
+
+
+async def test_el_total_reconocido_se_recalcula_desde_el_detalle_persistido(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """D10/R8: el total reconocido es la suma del detalle persistido, no del payload."""
+    ctx = await _seed(session, tenant_a)
+    presentada = await _presentada(session, tenant_a, ctx, turnos=2)
+    primero, segundo = presentada.detalles
+
+    resultante = await registrar_resultado(
+        session,
+        tenant_id=tenant_a.id,
+        liquidacion_id=presentada.id,
+        datos=_resultado(
+            _recorte(primero.turno_id, "20000.00"),
+            _recorte(segundo.turno_id, "0.00", "Fuera de nomenclador"),
+            resultado="con_debitos",
+        ),
+        actor_id=ctx.usuario.id,
+    )
+
+    detalles = await _detalles_orm(session, tenant_a, presentada.id)
+    suma_persistida = sum(
+        (detalle.monto_reconocido for detalle in detalles if detalle.monto_reconocido is not None),
+        CERO,
+    )
+    assert resultante.total_reconocido == suma_persistida == Decimal("20000.00")
+    assert resultante.total == Decimal("40000.00")
+    assert resultante.saldo_debito == Decimal("20000.00")
+    assert (await _estado_orm(session, tenant_a, presentada.id)).total_reconocido == Decimal(
+        "20000.00"
+    )
+
+
+async def test_la_con_debitos_pasa_a_pagada_conservando_el_saldo_reconocido(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """D4 (enmienda): `con_debitos → pagada` conserva el débito y el saldo reconocido."""
+    ctx = await _seed(session, tenant_a)
+    presentada = await _presentada(session, tenant_a, ctx)
+    turno_id = presentada.detalles[0].turno_id
+    con_debitos = await registrar_resultado(
+        session,
+        tenant_id=tenant_a.id,
+        liquidacion_id=presentada.id,
+        datos=_resultado(_recorte(turno_id, "15000.00", "Arancel fuera de nomenclador")),
+        actor_id=ctx.usuario.id,
+    )
+    assert con_debitos.estado is EstadoLiquidacionOS.CON_DEBITOS
+    assert con_debitos.total_reconocido == Decimal("15000.00")
+
+    # La OS paga el saldo reconocido: no vuelve a informar el motivo, se conserva el cargado.
+    pagada = await registrar_resultado(
+        session,
+        tenant_id=tenant_a.id,
+        liquidacion_id=presentada.id,
+        datos=_resultado(_recorte(turno_id, "15000.00"), resultado="pagada"),
+        actor_id=ctx.usuario.id,
+    )
+
+    assert pagada.estado is EstadoLiquidacionOS.PAGADA
+    assert pagada.total_reconocido == Decimal("15000.00")
+    assert pagada.total == Decimal("20000.00")
+    assert pagada.saldo_debito == Decimal("5000.00")
+    assert pagada.detalles[0].debito_motivo == "Arancel fuera de nomenclador"
+    assert pagada.detalles[0].monto_reconocido == Decimal("15000.00")
+
+
+async def test_la_con_debitos_pasa_a_pagada_con_un_reconocido_menor_da_422(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """D4 (enmienda): la OS no puede reconocer menos de lo que ya había reconocido."""
+    ctx = await _seed(session, tenant_a)
+    presentada = await _presentada(session, tenant_a, ctx)
+    turno_id = presentada.detalles[0].turno_id
+    await registrar_resultado(
+        session,
+        tenant_id=tenant_a.id,
+        liquidacion_id=presentada.id,
+        datos=_resultado(_recorte(turno_id, "15000.00", "Arancel fuera de nomenclador")),
+        actor_id=ctx.usuario.id,
+    )
+
+    with pytest.raises(EntidadInvalida):
+        await registrar_resultado(
+            session,
+            tenant_id=tenant_a.id,
+            liquidacion_id=presentada.id,
+            datos=_resultado(_recorte(turno_id, "10000.00", "Otro débito"), resultado="pagada"),
+            actor_id=ctx.usuario.id,
+        )
+
+    cabecera = await _estado_orm(session, tenant_a, presentada.id)
+    assert cabecera.estado == EstadoLiquidacionOS.CON_DEBITOS.value
+    assert cabecera.total_reconocido == Decimal("15000.00")
+
+
+async def test_el_resultado_incompleto_da_422_informando_cuantos_turnos_faltan(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """E.6: el 422 dice cuántos turnos faltan y cuáles (sin datos del paciente)."""
+    ctx = await _seed(session, tenant_a)
+    presentada = await _presentada(session, tenant_a, ctx, turnos=3)
+    informe, *pendientes = presentada.detalles
+
+    with pytest.raises(EntidadInvalida) as error:
+        await registrar_resultado(
+            session,
+            tenant_id=tenant_a.id,
+            liquidacion_id=presentada.id,
+            datos=_resultado(_recorte(informe.turno_id, "20000.00"), resultado="pagada"),
+            actor_id=ctx.usuario.id,
+        )
+
+    mensaje = str(error.value)
+    assert "faltan 2" in mensaje
+    assert str(pendientes[0].turno_id) in mensaje
+    assert str(pendientes[1].turno_id) in mensaje
+    assert ctx.paciente.dni not in mensaje
+    assert ctx.paciente.telefono not in mensaje
+
+
+async def test_el_resultado_con_turnos_de_mas_da_422(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """E.6: un turno ajeno a la liquidación no se puede informar en el resultado."""
+    ctx = await _seed(session, tenant_a)
+    presentada = await _presentada(session, tenant_a, ctx)
+    ajeno = await _turno(session, tenant_a, ctx, hora=13)
+
+    with pytest.raises(EntidadInvalida) as error:
+        await registrar_resultado(
+            session,
+            tenant_id=tenant_a.id,
+            liquidacion_id=presentada.id,
+            datos=_resultado(
+                _recorte(presentada.detalles[0].turno_id, "20000.00"),
+                _recorte(ajeno.id, "20000.00"),
+                resultado="pagada",
+            ),
+            actor_id=ctx.usuario.id,
+        )
+
+    assert str(ajeno.id) in str(error.value)
+    cabecera = await _estado_orm(session, tenant_a, presentada.id)
+    assert cabecera.estado == EstadoLiquidacionOS.PRESENTADA.value
+
+
+# ---------------------------------------------------------------------------
+# Bloque E: serialización de las mutaciones (D11)
+# ---------------------------------------------------------------------------
+
+
+async def test_la_edicion_concurrente_de_una_presentada_da_409_y_no_muta_el_detalle(
+    session: AsyncSession, tenant_a: Tenant, db_url: str, dialecto: str
+) -> None:
+    """D11: con la cabecera bloqueada, la edición perdedora recibe 409 y no pisa el detalle."""
+    if dialecto != "postgresql":
+        pytest.skip("el lock pesimista de cabecera sólo lo aplica Postgres")
+
+    ctx = await _seed(session, tenant_a)
+    borrador = await _borrador(session, tenant_a, ctx)
+    await registrar_debitos(
+        session,
+        tenant_id=tenant_a.id,
+        liquidacion_id=borrador.id,
+        datos=LiquidacionOSDebitosInput(
+            detalles=[
+                LiquidacionOSDetalleDebitoInput(
+                    turno_id=borrador.detalles[0].turno_id,
+                    monto_reconocido=Decimal("15000.00"),
+                    debito_motivo="Primer pase",
+                )
+            ]
+        ),
+        actor_id=ctx.usuario.id,
+    )
+    await session.commit()
+
+    engine = create_engine_for(db_url)
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with maker() as otra:
+        # La transacción principal presenta la liquidación y mantiene el lock de cabecera.
+        await presentar_liquidacion(
+            session, tenant_id=tenant_a.id, liquidacion_id=borrador.id, actor_id=ctx.usuario.id
+        )
+        # La otra transacción intenta editar los débitos: queda esperando el lock.
+        tarea = asyncio.create_task(
+            registrar_debitos(
+                otra,
+                tenant_id=tenant_a.id,
+                liquidacion_id=borrador.id,
+                datos=LiquidacionOSDebitosInput(
+                    detalles=[
+                        LiquidacionOSDetalleDebitoInput(
+                            turno_id=borrador.detalles[0].turno_id,
+                            monto_reconocido=Decimal("10000.00"),
+                            debito_motivo="Segundo pase",
+                        )
+                    ]
+                ),
+                actor_id=ctx.usuario.id,
+            )
+        )
+        await asyncio.sleep(0.2)
+        assert not tarea.done(), "la edición concurrente tiene que quedar esperando el lock"
+        await session.commit()
+
+        with pytest.raises(Conflicto):
+            await asyncio.wait_for(tarea, timeout=15)
+
+    detalles = await _detalles_orm(session, tenant_a, borrador.id)
+    assert detalles[0].monto_reconocido == Decimal("15000.00")
+    assert detalles[0].debito_motivo == "Primer pase"
+    assert (await _estado_orm(session, tenant_a, borrador.id)).estado == (
+        EstadoLiquidacionOS.PRESENTADA.value
+    )
+
+
+# ---------------------------------------------------------------------------
 # 3.4 Anulación y liberación de turnos (R7, D3)
 # ---------------------------------------------------------------------------
 
@@ -592,13 +866,26 @@ async def test_anular_fuera_de_borrador_da_409(
     assert len(detalles) == 1
 
 
-async def test_tras_pagar_el_alta_avisa_que_es_complementaria(
+async def test_tras_pagar_el_alta_complementaria_no_reclama_los_turnos_pagados(
     session: AsyncSession, tenant_a: Tenant
 ) -> None:
-    """D6: el período con una liquidación pagada admite complementarias, con advertencia."""
+    """D9/D6: la complementaria excluye el turno ya cobrado y avisa por `advertencias`."""
     ctx = await _seed(session, tenant_a)
-    pagada = await _llevar_a(session, tenant_a, ctx, EstadoLiquidacionOS.PAGADA)
-    assert pagada.estado is EstadoLiquidacionOS.PAGADA
+    pagada = await _borrador(session, tenant_a, ctx)
+    await presentar_liquidacion(
+        session, tenant_id=tenant_a.id, liquidacion_id=pagada.id, actor_id=ctx.usuario.id
+    )
+    await registrar_resultado(
+        session,
+        tenant_id=tenant_a.id,
+        liquidacion_id=pagada.id,
+        datos=_resultado(_recorte(pagada.detalles[0].turno_id, "20000.00"), resultado="pagada"),
+        actor_id=ctx.usuario.id,
+    )
+    ya_cobrado = pagada.detalles[0].turno_id
+
+    # Un turno finalizado más tarde es el único que se puede reclamar en la complementaria.
+    nuevo = await _turno(session, tenant_a, ctx, hora=11)
 
     complementaria = await generar_borrador(
         session,
@@ -608,6 +895,37 @@ async def test_tras_pagar_el_alta_avisa_que_es_complementaria(
     )
 
     assert complementaria.estado is EstadoLiquidacionOS.BORRADOR
-    assert complementaria.advertencias
+    assert [detalle.turno_id for detalle in complementaria.detalles] == [nuevo.id]
+    assert ya_cobrado not in {detalle.turno_id for detalle in complementaria.detalles}
+    assert complementaria.total == Decimal("20000.00")
     assert complementaria.advertencias[0] == ADVERTENCIA_COMPLEMENTARIA
-    assert len(complementaria.detalles) == 1
+    assert any(str(ya_cobrado) in aviso for aviso in complementaria.advertencias)
+
+
+async def test_la_complementaria_sin_turnos_nuevos_da_422(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """D9: si todos los turnos del período ya fueron liquidados, no hay nada que reclamar."""
+    ctx = await _seed(session, tenant_a)
+    pagada = await _borrador(session, tenant_a, ctx)
+    await presentar_liquidacion(
+        session, tenant_id=tenant_a.id, liquidacion_id=pagada.id, actor_id=ctx.usuario.id
+    )
+    await registrar_resultado(
+        session,
+        tenant_id=tenant_a.id,
+        liquidacion_id=pagada.id,
+        datos=_resultado(_recorte(pagada.detalles[0].turno_id, "20000.00"), resultado="pagada"),
+        actor_id=ctx.usuario.id,
+    )
+
+    with pytest.raises(EntidadInvalida) as error:
+        await generar_borrador(
+            session,
+            tenant_id=tenant_a.id,
+            datos=LiquidacionOSCreate(obra_social="OSDE", periodo="202611"),
+            actor_id=ctx.usuario.id,
+        )
+
+    assert "no hay turnos nuevos para liquidar en ese período" in str(error.value)
+    assert await _cantidad_liquidaciones(session, tenant_a) == 1

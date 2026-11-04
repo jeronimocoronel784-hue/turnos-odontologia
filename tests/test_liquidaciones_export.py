@@ -11,10 +11,12 @@ Verifica:
 
 import csv
 import io
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from urllib.parse import unquote
 
 import httpx
 import pytest
@@ -41,6 +43,7 @@ COLUMNAS_CSV = [
     "monto_reclamado",
     "monto_reconocido",
     "debito_motivo",
+    "saldo_debito",
 ]
 
 DNI_PACIENTE = "30999888"
@@ -106,7 +109,9 @@ async def _seed_consultorio(
         invasiva=False,
         activa=True,
     )
+    # R11: los padres se insertan y confirman antes que los hijos (Postgres aplica las FK).
     session.add_all([ctx.paciente, ctx.sillon, ctx.prestacion, ctx.prestacion_especial])
+    await session.flush()
     session.add_all(
         [
             CoberturaOS(
@@ -231,6 +236,16 @@ def _filas_csv(contenido: bytes) -> list[list[str]]:
     return list(csv.reader(io.StringIO(texto, newline="")))
 
 
+def _cabecera_descarga(respuesta: httpx.Response) -> tuple[str, str]:
+    """Devuelve el `filename` ASCII y el `filename*` percent-encoded (RFC 5987)."""
+    cabecera = respuesta.headers["content-disposition"]
+    plano = re.search(r'filename="([^"]*)"', cabecera)
+    extendido = re.search(r"filename\*=UTF-8''([^;]*)", cabecera)
+    assert plano is not None, cabecera
+    assert extendido is not None, cabecera
+    return plano.group(1), extendido.group(1)
+
+
 async def test_csv_con_debitos_incluye_motivo_y_no_expone_phi(
     api: httpx.AsyncClient,
     session: AsyncSession,
@@ -247,10 +262,9 @@ async def test_csv_con_debitos_incluye_motivo_y_no_expone_phi(
     respuesta = await api.get(f"{URL}/{liquidacion_id}/exportar", headers=headers)
     assert respuesta.status_code == 200, respuesta.text
     assert respuesta.headers["content-type"].startswith("text/csv")
-    assert (
-        respuesta.headers["content-disposition"]
-        == 'attachment; filename="liquidacion-OSDE-202611.csv"'
-    )
+    nombre, extendido = _cabecera_descarga(respuesta)
+    assert nombre == "liquidacion-OSDE-202611.csv"
+    assert extendido == "liquidacion-OSDE-202611.csv"
 
     filas = _filas_csv(respuesta.content)
     assert filas[0] == COLUMNAS_CSV
@@ -265,9 +279,12 @@ async def test_csv_con_debitos_incluye_motivo_y_no_expone_phi(
     assert recortada[7] == "30000.00"
     assert recortada[8] == "25000.00"
     assert recortada[9] == MOTIVO_DEBITO
+    # El saldo pendiente de la liquidación viaja en cada fila (D4/D10).
+    assert recortada[10] == "5000.00"
     # Las filas sin recorte llevan el reconocido completo y el motivo vacío.
     assert cuerpo[turnos[1]][8] == "30000.00"
     assert cuerpo[turnos[1]][9] == ""
+    assert cuerpo[turnos[1]][10] == "5000.00"
 
     # RFC 4180: la prestación con coma y comillas va entrecomillada y con comillas duplicadas.
     assert '"Consulta, control ""especial"""' in respuesta.content.decode("utf-8-sig")
@@ -305,6 +322,8 @@ async def test_csv_de_borrador_deja_los_montos_reconocidos_vacios(
     assert filas[1][2] == "borrador"
     assert filas[1][8] == ""
     assert filas[1][9] == ""
+    # Sin resultado de la OS no hay saldo pendiente que mostrar.
+    assert filas[1][10] == ""
 
 
 async def test_csv_marca_el_estado_de_arancel_vencido_por_fila(
@@ -334,6 +353,7 @@ async def test_csv_marca_el_estado_de_arancel_vencido_por_fila(
         activa=True,
     )
     session.add(vencida)
+    await session.flush()
     session.add(
         CoberturaOS(
             id=uuid.uuid4(),
@@ -405,10 +425,62 @@ async def test_nombre_de_archivo_normaliza_la_obra_social(
     respuesta = await api.get(f"{URL}/{alta.json()['id']}/exportar", headers=headers)
 
     assert respuesta.status_code == 200, respuesta.text
-    assert (
-        respuesta.headers["content-disposition"]
-        == 'attachment; filename="liquidacion-SWISS-MEDICAL-202611.csv"'
+    nombre, extendido = _cabecera_descarga(respuesta)
+    assert nombre == "liquidacion-SWISS-MEDICAL-202611.csv"
+    assert extendido == "liquidacion-SWISS-MEDICAL-202611.csv"
+
+
+async def test_el_nombre_de_archivo_es_ascii_y_lleva_filename_rfc_5987(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+) -> None:
+    """N3: el `filename` es ASCII y el nombre legible viaja percent-encoded (RFC 5987).
+
+    Sin esto, una obra social con acentos rompe el header `latin-1` y la descarga da 500.
+    """
+    dueno = await crear_usuario(
+        tenant=tenant_a,
+        email="dueno-export-nombre-acentos@consultorio.test",
+        rol=RolUsuario.DUENO,
     )
+    headers = autorizacion(token_para(dueno))
+    ctx = await _seed_consultorio(session, tenant_a, crear_usuario)
+    session.add(
+        CoberturaOS(
+            id=uuid.uuid4(),
+            tenant_id=tenant_a.id,
+            obra_social="Médico Integral",
+            prestacion_id=ctx.prestacion.id,
+            arancel=Decimal("20000.00"),
+            copago=Decimal("0.00"),
+            vigencia_desde=date(2020, 1, 1),
+            vigencia_hasta=None,
+            activa=True,
+        )
+    )
+    await session.flush()
+    await _turno(session, tenant_a, ctx, inicio=datetime(2026, 11, 9, 9, 0, tzinfo=UTC))
+    alta = await api.post(
+        URL, headers=headers, json={"obra_social": "Médico Integral", "periodo": "202611"}
+    )
+    assert alta.status_code == 201, alta.text
+
+    respuesta = await api.get(f"{URL}/{alta.json()['id']}/exportar", headers=headers)
+
+    assert respuesta.status_code == 200, respuesta.text
+    cabecera = respuesta.headers["content-disposition"]
+    nombre, extendido = _cabecera_descarga(respuesta)
+    assert nombre.isascii(), "el `filename` tiene que ser ASCII"
+    assert nombre == "liquidacion-M-dico-Integral-202611.csv"
+    assert extendido == "liquidacion-M%C3%A9dico-Integral-202611.csv"
+    assert unquote(extendido) == "liquidacion-Médico-Integral-202611.csv"
+    # El header completo es ASCII: no rompe la codificación latin-1 del cliente HTTP.
+    assert cabecera.isascii()
+    assert cabecera.startswith("attachment; ")
 
 
 async def test_json_incluye_cabecera_y_las_tres_filas_con_decimales_como_string(
@@ -430,16 +502,16 @@ async def test_json_incluye_cabecera_y_las_tres_filas_con_decimales_como_string(
 
     assert respuesta.status_code == 200, respuesta.text
     assert respuesta.headers["content-type"].startswith("application/json")
-    assert (
-        respuesta.headers["content-disposition"]
-        == 'attachment; filename="liquidacion-OSDE-202611.json"'
-    )
+    nombre, extendido = _cabecera_descarga(respuesta)
+    assert nombre == "liquidacion-OSDE-202611.json"
+    assert extendido == "liquidacion-OSDE-202611.json"
     cuerpo = respuesta.json()
     assert cuerpo["obra_social"] == "OSDE"
     assert cuerpo["periodo"] == "202611"
     assert cuerpo["estado"] == "con_debitos"
     assert cuerpo["total"] == "90000.00"
     assert cuerpo["total_reconocido"] == "85000.00"
+    assert cuerpo["saldo_debito"] == "5000.00"
     assert [fila["turno_id"] for fila in cuerpo["detalles"]] == turnos
     assert {fila["monto_reclamado"] for fila in cuerpo["detalles"]} == {"30000.00"}
     assert cuerpo["detalles"][0]["monto_reconocido"] == "25000.00"
@@ -541,3 +613,63 @@ async def test_el_contenido_no_depende_de_montos_enviados_por_el_cliente(
     assert {fila[7] for fila in filas[1:]} == {"30000.00"}
     assert "999999.00" not in limpia.content.decode("utf-8-sig")
     assert "inyectado" not in limpia.content.decode("utf-8-sig")
+
+
+async def test_el_csv_de_una_pagada_con_debitos_incluye_el_saldo_debito(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+) -> None:
+    """D4/D10: una `pagada` puede arrastrar débito; el CSV expone el saldo pendiente."""
+    recepcion = await crear_usuario(
+        tenant=tenant_a,
+        email="recepcion-export-pagada-debitos@consultorio.test",
+        rol=RolUsuario.RECEPCION,
+    )
+    headers = autorizacion(token_para(recepcion))
+    ctx = await _seed_consultorio(session, tenant_a, crear_usuario)
+    turno = await _turno(session, tenant_a, ctx, inicio=datetime(2026, 11, 9, 9, 0, tzinfo=UTC))
+
+    alta = await api.post(URL, headers=headers, json={"obra_social": "OSDE", "periodo": "202611"})
+    assert alta.status_code == 201, alta.text
+    liquidacion_id = alta.json()["id"]
+    cierre = await api.post(f"{URL}/{liquidacion_id}/cerrar", headers=headers, json={})
+    assert cierre.status_code == 200, cierre.text
+
+    con_debitos = await api.post(
+        f"{URL}/{liquidacion_id}/resultado",
+        headers=headers,
+        json={
+            "resultado": "con_debitos",
+            "detalles": [
+                {
+                    "turno_id": str(turno.id),
+                    "monto_reconocido": "15000.00",
+                    "debito_motivo": MOTIVO_DEBITO,
+                }
+            ],
+        },
+    )
+    assert con_debitos.status_code == 200, con_debitos.text
+    pagada = await api.post(
+        f"{URL}/{liquidacion_id}/resultado",
+        headers=headers,
+        json={
+            "resultado": "pagada",
+            "detalles": [{"turno_id": str(turno.id), "monto_reconocido": "15000.00"}],
+        },
+    )
+    assert pagada.status_code == 200, pagada.text
+    assert pagada.json()["estado"] == "pagada"
+
+    respuesta = await api.get(f"{URL}/{liquidacion_id}/exportar", headers=headers)
+
+    filas = _filas_csv(respuesta.content)
+    assert filas[0] == COLUMNAS_CSV
+    assert filas[1][2] == "pagada"
+    assert filas[1][8] == "15000.00"
+    assert filas[1][9] == MOTIVO_DEBITO
+    assert filas[1][10] == "15000.00"

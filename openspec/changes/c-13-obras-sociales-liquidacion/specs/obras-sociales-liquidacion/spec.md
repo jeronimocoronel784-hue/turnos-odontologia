@@ -32,7 +32,7 @@ Cuando el único convenio registrado para la obra social y la prestación tenga 
 - **THEN** cada fila afectada expone `arancel_vencido = true` para revisión antes de presentar
 
 ### Requirement: Alta de liquidación con turnos finalizados del período
-El sistema MUST crear una liquidación en estado `borrador` para una obra social y un período `yyyymm`, incluyendo únicamente turnos en estado `finalizado` cuyo inicio caiga dentro del período y que tengan convenio registrado para esa obra social, calculando `monto_reclamado` por turno con el arancel resuelto (`RN-OS-02`). El sistema MUST NOT incluir turnos `pendiente`, `confirmado`, `presente`, `cancelado`, `ausente` ni `reprogramado`.
+El sistema MUST crear una liquidación `borrador` para una obra social y un período `yyyymm`, incluyendo únicamente turnos `finalizado` del período con convenio de esa obra social, calculando `monto_reclamado` por turno con el arancel resuelto (`RN-OS-02`). MUST NOT incluir turnos `pendiente`, `confirmado`, `presente`, `cancelado`, `ausente` ni `reprogramado`. El conteo de turnos sin cobertura MUST persistirse en `turnos_sin_cobertura` e informarse en el alta y las lecturas.
 
 #### Scenario: Se incluyen los turnos finalizados con cobertura del período
 - **GIVEN** tres turnos finalizados en noviembre de 2026 con convenio de la obra social y un turno finalizado en octubre de 2026
@@ -49,18 +49,38 @@ El sistema MUST crear una liquidación en estado `borrador` para una obra social
 - **WHEN** se crea la liquidación de esa obra social
 - **THEN** el turno queda fuera del borrador y el sistema informa cuántos turnos del período quedaron sin cobertura
 
-### Requirement: Unicidad del turno en una liquidación abierta por obra social y período
-Un turno MUST figurar en una sola liquidación abierta (`borrador`, `presentada` o `con_debitos`) por obra social y período. El sistema MUST rechazar con `409 Conflict` cualquier intento de incluirlo en una segunda liquidación abierta y MUST garantizarlo además como constraint de base de datos (`RN-OS-02`).
+#### Scenario: Los turnos sin cobertura quedan persistidos en la cabecera
+- **GIVEN** un turno finalizado del período sin convenio con la obra social liquidada
+- **WHEN** se crea la liquidación y después se consulta esa liquidación por API
+- **THEN** el alta y la consulta devuelven el mismo valor `turnos_sin_cobertura` y el turno sin cobertura no figura en el detalle
 
-#### Scenario: Doble liquidación del mismo turno es rechazada
+### Requirement: Unicidad del reclamo por obra social y período
+Un turno MUST reclamarse una sola vez por obra social y período mientras la liquidación que lo contiene no esté `anulada`. El borrador MUST excluir todo turno con detalle en cualquier liquidación de esa OS/período no anulada (incluidas `pagada` y `con_debitos`) e informar los excluidos; si no queda ningún turno nuevo, el alta MUST rechazarse con `422`. La unicidad MUST garantizarse además con un constraint de base de datos, y una violación por carrera MUST traducirse a `409` (`RN-OS-02`).
+
+#### Scenario: El turno ya reclamado queda fuera de la liquidación nueva
 - **GIVEN** un turno finalizado ya incluido en la liquidación `202611` de la obra social en estado `presentada`
-- **WHEN** se intenta crear otra liquidación `202611` de la misma obra social que incluya ese turno
-- **THEN** el sistema responde `409 Conflict`, no crea la segunda liquidación y no duplica el turno
+- **WHEN** se intenta crear otra liquidación `202611` de la misma obra social
+- **THEN** el turno ya reclamado no entra en el borrador nuevo, la cabecera `total` no lo incluye y las `advertencias` informan el turno excluido
 
 #### Scenario: Anular la liquidación libera el turno
 - **GIVEN** una liquidación en `borrador` que contiene un turno finalizado
 - **WHEN** la liquidación se anula y se crea una nueva liquidación para la misma obra social y período
 - **THEN** el turno puede incluirse en la nueva liquidación sin violar el constraint
+
+#### Scenario: La complementaria no vuelve a reclamar un turno ya liquidado
+- **GIVEN** una liquidación `pagada` de la obra social para el período `202611` que ya contiene un turno finalizado
+- **WHEN** se crea una nueva liquidación de la misma obra social y el mismo período
+- **THEN** el turno ya liquidado no entra en el borrador nuevo, la cabecera `total` no lo incluye y las `advertencias` informan el turno excluido por estar ya reclamado
+
+#### Scenario: Un período sin turnos nuevos no genera una liquidación complementaria
+- **GIVEN** una liquidación `pagada` de la obra social para el período `202611` con todos sus turnos finalizados ya reclamados
+- **WHEN** se intenta crear otra liquidación de la misma obra social y el mismo período
+- **THEN** el sistema responde `422` indicando que no hay turnos nuevos para liquidar en ese período y no crea la liquidación
+
+#### Scenario: Dos altas simultáneas producen un solo borrador
+- **GIVEN** dos solicitudes concurrentes de alta para la misma obra social y el mismo período
+- **WHEN** ambas solicitudes llegan a la base de datos al mismo tiempo
+- **THEN** queda una sola liquidación creada y la otra responde `409 Conflict` (nunca `500`)
 
 ### Requirement: Registro de débitos sobre el borrador
 El sistema MUST permitir registrar sobre una liquidación `borrador` el `monto_reconocido` por turno y MUST exigir un `debito_motivo` no vacío cuando lo reconocido sea menor a lo reclamado (`US-041`). Los totales MUST recalcularse en el servidor como suma de `monto_reclamado` y suma de `monto_reconocido`, sin confiar en totales del cliente (`R8`).
@@ -76,7 +96,7 @@ El sistema MUST permitir registrar sobre una liquidación `borrador` el `monto_r
 - **THEN** el sistema responde `422` y el detalle no cambia
 
 ### Requirement: Presentación del borrador e inmutabilidad del detalle
-Cerrar una liquidación MUST transicionar `borrador → presentada` sólo si tiene al menos un turno con `monto_reclamado` mayor a cero, y MUST fijar el detalle como inmutable. Cualquier intento de editar débitos de una liquidación ya presentada MUST rechazarse con `409 Conflict`.
+Cerrar una liquidación MUST transicionar `borrador → presentada` sólo si tiene al menos un turno con `monto_reclamado` mayor a cero, y MUST fijar el detalle como inmutable. Editar débitos de una liquidación ya presentada MUST rechazarse con `409 Conflict`. Las mutaciones sobre una misma liquidación MUST serializarse con un lock pesimista de cabecera: una segunda mutación concurrente sobre una liquidación que otra transacción dejó inmutable MUST rechazarse con `409 Conflict` sin mutar el detalle.
 
 #### Scenario: Cierre exitoso de un borrador con turnos
 - **GIVEN** un borrador con dos turnos y total mayor a cero
@@ -93,8 +113,13 @@ Cerrar una liquidación MUST transicionar `borrador → presentada` sólo si tie
 - **WHEN** se intenta modificar el `monto_reconocido` de un turno
 - **THEN** el sistema responde `409 Conflict` y el detalle queda intacto
 
+#### Scenario: La edición concurrente de una liquidación presentada es rechazada
+- **GIVEN** una liquidación en estado `presentada` con un turno reconocido
+- **WHEN** dos solicitudes concurrentes intentan modificar el `monto_reconocido` de ese turno
+- **THEN** una de ellas recibe `409 Conflict`, la otra se aplica y el detalle conserva los montos persistidos por la operación que sí entró
+
 ### Requirement: Registro del resultado informado por la obra social
-El sistema MUST registrar la respuesta de la obra social transicionando `presentada → pagada` cuando reconoce el total reclamado, o `presentada → con_debitos` cuando reconoce menos, guardando `monto_reconocido` y `debito_motivo` por turno y el `total_reconocido` de la liquidación (`US-041`).
+El sistema MUST registrar la respuesta de la OS transicionando `presentada → pagada` si reconoce el total reclamado o `presentada → con_debitos` si reconoce menos, guardando `monto_reconocido` y `debito_motivo` por turno (`US-041`). El resultado MUST ser todo-o-nada: cada turno una vez y `422` ante `turno_id` repetido o ajeno. El `total_reconocido` MUST calcularse desde el detalle persistido (`R8`). La transición `con_debitos → pagada` MUST conservar el saldo reconocido y los motivos de débito.
 
 #### Scenario: Resultado con recortes deja la liquidación con débitos
 - **GIVEN** una liquidación `presentada` con total reclamado `20000.00`
@@ -105,6 +130,21 @@ El sistema MUST registrar la respuesta de la obra social transicionando `present
 - **GIVEN** una liquidación `presentada` con total reclamado `20000.00`
 - **WHEN** se registra un resultado que reconoce `20000.00`
 - **THEN** la liquidación pasa a `pagada` con `total_reconocido = 20000.00`
+
+#### Scenario: El resultado no puede repetir un turno
+- **GIVEN** una liquidación `presentada` con dos turnos
+- **WHEN** se registra un resultado que informa el mismo `turno_id` dos veces
+- **THEN** el sistema responde `422`, no aplica ningún monto y la liquidación conserva su estado y sus montos
+
+#### Scenario: El total reconocido se recalcula desde el detalle persistido
+- **GIVEN** una liquidación `presentada` con dos turnos liquidados por `20000.00` cada uno
+- **WHEN** se registra un resultado que reconoce `20000.00` en el primero y `0.00` en el segundo, con el motivo del débito
+- **THEN** la cabecera expone `total_reconocido = 20000.00` como suma del detalle persistido, con `saldo_debito = 20000.00`, y ningún monto proviene del payload
+
+#### Scenario: Una liquidación con débitos pasa a pagada con el saldo reconocido
+- **GIVEN** una liquidación en estado `con_debitos` con `total = 20000.00`, `total_reconocido = 15000.00` y un motivo de débito por turno
+- **WHEN** se registra un resultado que reconoce los `15000.00` ya reconocidos
+- **THEN** la liquidación pasa a `pagada` conservando `total_reconocido = 15000.00` y los motivos de débito del detalle, y expone `saldo_debito = 5000.00`
 
 ### Requirement: Anulación por baja lógica sin borrado físico
 El sistema MUST permitir anular únicamente una liquidación en estado `borrador` mediante baja lógica a estado `anulada`, conservando la cabecera y su detalle. MUST rechazar la anulación de una liquidación `presentada`, `pagada` o `con_debitos`, y MUST NOT eliminar físicamente ninguna liquidación ni fila de detalle (`R7`, `RN-SE-01`).

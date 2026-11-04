@@ -6,6 +6,8 @@ Verifica:
 3. `monto_reconocido` no negativo y con 2 decimales como máximo.
 4. Débito sin motivo y motivo de anulación vacío rechazados.
 5. Serialización de `Decimal` como string en las respuestas.
+6. Bloque E (D10): un `turno_id` repetido se rechaza en el borde (422).
+7. Bloque E (D4/D10): la lectura expone el `saldo_debito` derivado.
 """
 
 import uuid
@@ -26,10 +28,13 @@ from app.api.schemas_liquidaciones import (
 from app.domain.liquidacion_os import EstadoLiquidacionOS
 
 TURNO_ID = uuid.uuid4()
+OTRO_TURNO_ID = uuid.uuid4()
 
 
-def _detalle_debito(monto: str = "15000.00", **extra: object) -> dict[str, object]:
-    datos: dict[str, object] = {"turno_id": str(TURNO_ID), "monto_reconocido": monto}
+def _detalle_debito(
+    monto: str = "15000.00", turno_id: uuid.UUID = TURNO_ID, **extra: object
+) -> dict[str, object]:
+    datos: dict[str, object] = {"turno_id": str(turno_id), "monto_reconocido": monto}
     datos.update(extra)
     return datos
 
@@ -91,7 +96,7 @@ def test_debitos_aceptan_montos_y_observaciones() -> None:
         observaciones="La OS devolvió dos turnos",
         detalles=[
             _detalle_debito("15000.00", debito_motivo="Arancel fuera de nomenclador"),
-            _detalle_debito("20000.00"),
+            _detalle_debito("20000.00", turno_id=OTRO_TURNO_ID),
         ],
     )
 
@@ -128,6 +133,34 @@ def test_resultado_con_debitos_exige_al_menos_un_motivo() -> None:
         detalles=[_detalle_debito("15000.00", debito_motivo="Débito por nomenclador")],
     )
     assert datos.detalles[0].debito_motivo == "Débito por nomenclador"
+
+
+def test_los_debitos_rechazan_turnos_repetidos() -> None:
+    """D10: el mismo `turno_id` dos veces sumaría el turno dos veces (422 en el borde)."""
+    with pytest.raises(ValidationError) as error:
+        LiquidacionOSDebitosInput(
+            detalles=[
+                _detalle_debito("15000.00", debito_motivo="Primer pase"),
+                _detalle_debito("15000.00", debito_motivo="Segundo pase"),
+            ]
+        )
+
+    assert "más de una vez" in str(error.value)
+
+
+def test_el_resultado_rechaza_turnos_repetidos() -> None:
+    """D10: el resultado informa cada turno exactamente una vez (BLOCKER 2)."""
+    with pytest.raises(ValidationError) as error:
+        ResultadoOSInput(
+            resultado="pagada",
+            detalles=[
+                _detalle_debito("20000.00"),
+                _detalle_debito("20000.00"),
+            ],
+        )
+
+    assert "más de una vez" in str(error.value)
+    assert str(TURNO_ID) in str(error.value)
 
 
 def test_anulacion_exige_motivo_no_vacio() -> None:
@@ -186,3 +219,70 @@ def test_lectura_serializa_los_decimales_como_string() -> None:
     assert json["detalles"][0]["monto_reconocido"] == "15000.00"
     assert json["estado"] == "con_debitos"
     assert json["detalles"][0]["debito_motivo"] == "Arancel fuera de nomenclador"
+
+
+def test_lectura_expone_el_saldo_debito() -> None:
+    """D4/D10: el saldo pendiente es `total - total_reconocido` y se deriva solo."""
+    detalle = LiquidacionOSDetalleRead(
+        id=uuid.uuid4(),
+        turno_id=TURNO_ID,
+        fecha_turno=datetime(2026, 11, 10, 9, 0, tzinfo=UTC),
+        prestacion="Consulta OS",
+        monto_reclamado=Decimal("20000.00"),
+        monto_reconocido=Decimal("15000.00"),
+        debito_motivo="Arancel fuera de nomenclador",
+        arancel_vencido=False,
+        vigente=True,
+    )
+    cabecera = LiquidacionOSRead(
+        id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        obra_social="OSDE",
+        periodo="202611",
+        estado=EstadoLiquidacionOS.CON_DEBITOS,
+        total=Decimal("20000.00"),
+        total_reconocido=Decimal("15000.00"),
+        observaciones=None,
+        presentada_por=uuid.uuid4(),
+        presentada_at=datetime(2026, 11, 30, 12, 0, tzinfo=UTC),
+        resuelta_por=uuid.uuid4(),
+        resuelta_at=datetime(2026, 12, 5, 12, 0, tzinfo=UTC),
+        anulada_motivo=None,
+        created_by=uuid.uuid4(),
+        created_at=datetime(2026, 11, 30, 10, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 11, 30, 10, 0, tzinfo=UTC),
+        turnos_sin_cobertura=0,
+        advertencias=[],
+        detalles=[detalle],
+    )
+
+    assert cabecera.saldo_debito == Decimal("5000.00")
+    assert cabecera.model_dump(mode="json")["saldo_debito"] == "5000.00"
+
+
+def test_lectura_sin_resultado_no_expone_saldo_debito() -> None:
+    """Sin resultado de la OS no hay saldo que mostrar: `saldo_debito` es `None`."""
+    cabecera = LiquidacionOSRead(
+        id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        obra_social="OSDE",
+        periodo="202611",
+        estado=EstadoLiquidacionOS.BORRADOR,
+        total=Decimal("20000.00"),
+        total_reconocido=None,
+        observaciones=None,
+        presentada_por=None,
+        presentada_at=None,
+        resuelta_por=None,
+        resuelta_at=None,
+        anulada_motivo=None,
+        created_by=uuid.uuid4(),
+        created_at=datetime(2026, 11, 30, 10, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 11, 30, 10, 0, tzinfo=UTC),
+        turnos_sin_cobertura=0,
+        advertencias=[],
+        detalles=[],
+    )
+
+    assert cabecera.saldo_debito is None
+    assert cabecera.model_dump(mode="json")["saldo_debito"] is None

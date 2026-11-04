@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,7 +32,6 @@ from app.domain.turno import EstadoTurno, OrigenTurno, Turno
 from app.domain.usuario import RolUsuario, Usuario
 
 RAIZ = Path(__file__).resolve().parents[1]
-CERO = Decimal("0.00")
 
 
 async def _escenario(session: AsyncSession, tenant: Tenant) -> dict[str, Any]:
@@ -140,7 +139,33 @@ async def _flush_rechazado(session: AsyncSession, *objetos: Any) -> None:
             await session.flush()
 
 
-async def test_esquema_tablas_liquidacion_os_y_detalle(session: AsyncSession) -> None:
+async def _indices_reales(session: AsyncSession, dialecto: str, tabla: str) -> set[str]:
+    """Índices reales de una tabla.
+
+    El inspector de SQLAlchemy en SQLite no refleja índices con expresiones (como
+    `lower(obra_social)`), así que los índices únicos parciales se leen del catálogo.
+    """
+    conn = await session.connection()
+
+    def _consultar(sync_conn: Any) -> set[str]:
+        if dialecto == "postgresql":
+            filas = sync_conn.execute(
+                text("SELECT indexname FROM pg_indexes WHERE tablename = :tabla"),
+                {"tabla": tabla},
+            ).fetchall()
+        else:
+            filas = sync_conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = :tabla"),
+                {"tabla": tabla},
+            ).fetchall()
+        return {fila[0] for fila in filas}
+
+    return await conn.run_sync(_consultar)
+
+
+async def test_esquema_tablas_liquidacion_os_y_detalle(
+    session: AsyncSession, dialecto: str
+) -> None:
     """Verifica columnas e índices de `liquidacion_os` y `liquidacion_detalle` (§04)."""
     conn = await session.connection()
 
@@ -190,13 +215,21 @@ async def test_esquema_tablas_liquidacion_os_y_detalle(session: AsyncSession) ->
         "updated_at",
     }.issubset(info["detalle"])
 
-    assert "uq_liquidacion_os_borrador" in info["idx_cabecera"]
     assert "ix_liquidacion_os_tenant_os_periodo" in info["idx_cabecera"]
     assert "ix_liquidacion_os_tenant_estado" in info["idx_cabecera"]
-    assert "uq_liquidacion_detalle_turno_abierto" in info["idx_detalle"]
     assert "ix_liquidacion_detalle_liquidacion_id" in info["idx_detalle"]
     assert "ix_liquidacion_detalle_tenant_turno" in info["idx_detalle"]
     assert "uq_liquidacion_detalle_turno" in info["uq_detalle"]
+
+    # Los índices únicos parciales usan `lower(obra_social)` desde la `013` (E.7): el
+    # inspector de SQLite no los refleja, así que se leen del catálogo.
+    indices_cabecera = await _indices_reales(session, dialecto, "liquidacion_os")
+    indices_detalle = await _indices_reales(session, dialecto, "liquidacion_detalle")
+    assert "uq_liquidacion_os_borrador" in indices_cabecera
+    # La `013` reemplaza `uq_liquidacion_detalle_turno_abierto` por el índice de reclamo
+    # único; la `012` queda intacta en el repo.
+    assert "uq_liquidacion_detalle_turno_reclamado" in indices_detalle
+    assert "uq_liquidacion_detalle_turno_abierto" not in indices_detalle
 
 
 async def test_cabecera_rechaza_estado_periodo_y_totales_invalidos(
@@ -344,7 +377,7 @@ async def test_un_solo_borrador_por_os_y_periodo_sin_bloquear_complementarias(
 async def test_turno_no_se_duplica_abierto_y_se_libera_al_anular(
     session: AsyncSession, tenant_a: Tenant
 ) -> None:
-    """RN-OS-02 / D3: dos filas abiertas del mismo turno chocan; con `vigente = false` conviven."""
+    """RN-OS-02 / D9 / D12: un turno se reclama una sola vez; sólo la anulación lo libera."""
     esc = await _escenario(session, tenant_a)
     primera = _liquidacion(tenant_a, esc)
     segunda = _presentada(tenant_a, esc)
@@ -355,21 +388,13 @@ async def test_turno_no_se_duplica_abierto_y_se_libera_al_anular(
     session.add(_detalle(tenant_a, primera, turno_uno.id))
     await session.flush()
 
+    # El mismo turno no se puede reclamar en otra liquidación de la misma OS/período.
     await _flush_rechazado(session, _detalle(tenant_a, segunda, turno_uno.id))
 
-    cerrada = _detalle(
-        tenant_a,
-        segunda,
-        turno_uno.id,
-        monto_reconocido=CERO,
-        debito_motivo="Turno liquidado dos veces",
-        vigente=False,
-    )
-    session.add(cerrada)
-    await session.flush()
-    assert cerrada.vigente is False
+    # El pago NO libera el reclamo: `vigente = false` (turno ya pagado) tampoco alcanza.
+    await _flush_rechazado(session, _detalle(tenant_a, segunda, turno_uno.id, vigente=False))
 
-    # Baja lógica: anular libera el turno de la liquidación anulada.
+    # Baja lógica: anular libera el turno (D9/D12: el detalle queda `reclamado = false`).
     anulada = _liquidacion(tenant_a, esc, obra_social="IOMA", periodo="202611")
     session.add(anulada)
     await session.flush()
@@ -379,6 +404,7 @@ async def test_turno_no_se_duplica_abierto_y_se_libera_al_anular(
     anulada.estado = EstadoLiquidacionOS.ANULADA.value
     anulada.anulada_motivo = "Se liquidó por error"
     fila_anulada.vigente = False
+    fila_anulada.reclamado = False
     await session.flush()
 
     nueva = _liquidacion(tenant_a, esc, obra_social="IOMA", periodo="202611")
@@ -387,21 +413,23 @@ async def test_turno_no_se_duplica_abierto_y_se_libera_al_anular(
     session.add(_detalle(tenant_a, nueva, turno_dos.id))
     await session.flush()
 
-    abiertos = (
+    filas = (
         (
             await session.execute(
                 select(LiquidacionOSDetalle).where(
                     LiquidacionOSDetalle.tenant_id == tenant_a.id,
                     LiquidacionOSDetalle.turno_id == turno_dos.id,
-                    LiquidacionOSDetalle.vigente.is_(True),
                 )
             )
         )
         .scalars()
         .all()
     )
-    assert len(abiertos) == 1
-    assert abiertos[0].liquidacion_id == nueva.id
+    assert len(filas) == 2
+    # Sólo la fila de la liquidación vigente conserva el reclamo.
+    assert {fila.reclamado for fila in filas} == {True, False}
+    assert {fila.vigente for fila in filas} == {True, False}
+    assert {fila.liquidacion_id for fila in filas if fila.reclamado} == {nueva.id}
 
 
 def test_migracion_012_encadenada_con_grants_y_modelos() -> None:
@@ -462,7 +490,16 @@ def test_migracion_012_upgrade_y_downgrade_reversibles(
     cfg.set_main_option("script_location", str(RAIZ / "src" / "backend" / "alembic"))
 
     tablas_nuevas = {"liquidacion_os", "liquidacion_detalle"}
+    # El índice del detalle cambió de nombre en la `013` (E.7): el de `head` es el de reclamo.
     indices_nuevos = {
+        "uq_liquidacion_os_borrador",
+        "ix_liquidacion_os_tenant_os_periodo",
+        "ix_liquidacion_os_tenant_estado",
+        "uq_liquidacion_detalle_turno_reclamado",
+        "ix_liquidacion_detalle_liquidacion_id",
+        "ix_liquidacion_detalle_tenant_turno",
+    }
+    indices_de_la_012 = {
         "uq_liquidacion_os_borrador",
         "ix_liquidacion_os_tenant_os_periodo",
         "ix_liquidacion_os_tenant_estado",
@@ -474,6 +511,10 @@ def test_migracion_012_upgrade_y_downgrade_reversibles(
     command.upgrade(cfg, "head")
     assert tablas_nuevas.issubset(_tablas_sqlite(ruta_db))
     assert indices_nuevos.issubset(_indices_sqlite(ruta_db))
+
+    # El estado de la `012` (sin la `013`) conserva su índice de turno abierto.
+    command.downgrade(cfg, "012_obras_sociales_liquidacion")
+    assert indices_de_la_012.issubset(_indices_sqlite(ruta_db))
 
     command.downgrade(cfg, "011_mercadopago_webhooks")
     assert not (tablas_nuevas & _tablas_sqlite(ruta_db))

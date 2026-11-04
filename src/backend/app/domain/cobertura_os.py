@@ -19,9 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.mixins import GUID, AuditMixin, TenantMixin
 from app.infrastructure.db.base import Base
-
-CENTAVOS = Decimal("0.01")
-CERO = Decimal("0.00")
+from app.shared.montos import CENTAVOS, CERO, monto_2dp
 
 
 class EstadoArancel(enum.StrEnum):
@@ -79,11 +77,6 @@ class CoberturaOS(Base, TenantMixin, AuditMixin):
     )
 
 
-def _monto(valor: object) -> Decimal:
-    """Normaliza cualquier monto a `Decimal` con 2 decimales (R8: nunca float)."""
-    return Decimal(str(valor)).quantize(CENTAVOS)
-
-
 def _clave_orden(convenio: CoberturaOS) -> tuple[date, date, str]:
     """Ordena por arancel más reciente: `vigencia_desde` y luego `vigencia_hasta` (D2)."""
     return (convenio.vigencia_desde, convenio.vigencia_hasta or date.max, str(convenio.id))
@@ -125,7 +118,7 @@ def resolver_cobertura_desde_candidatas(
     if cantidad < 1:
         raise ValueError("La cantidad tiene que ser al menos 1.")
 
-    precio_unit = _monto(precio_particular)
+    precio_unit = monto_2dp(precio_particular)
     subtotal = (precio_unit * Decimal(cantidad)).quantize(CENTAVOS)
     os_limpia = obra_social.strip().lower()
     if not os_limpia:
@@ -165,7 +158,7 @@ def resolver_cobertura_desde_candidatas(
             )
         return _sin_cobertura(precio_unit=precio_unit, subtotal=subtotal, advertencia=advertencia)
 
-    arancel_unit = _monto(elegida.arancel)
+    arancel_unit = monto_2dp(elegida.arancel)
     cobertura_unit = min(precio_unit, arancel_unit)
     cobertura = (cobertura_unit * Decimal(cantidad)).quantize(CENTAVOS)
     monto_a_cargo = max(CERO, subtotal - cobertura).quantize(CENTAVOS)

@@ -23,7 +23,7 @@ Turno 1──N ListaEspera(derivados) | N──1 Bloqueo(conflicto, si aplica)
 Paciente 1──1 Odontograma ──N PiezaEvento(FDI pieza/superficie/evento)
 Paciente 1──N Presupuesto ──N PresupuestoItem ──N Turno(vinculados)
 Paciente 1──N Consentimiento (firma previa a invasiva)
-Turno/Cobro 1──N MovimientoCaja N──1 Cierre | LiquidacionOS N──N Turno
+Turno/Cobro 1──N MovimientoCaja N──1 Cierre | LiquidacionOS 1──N LiquidacionOSDetalle N──N Turno
 Todo cambio crítico ──► Auditoria (append-only: quien/que/cuando/antes/despues)
 ```
 
@@ -117,9 +117,11 @@ Todo cambio crítico ──► Auditoria (append-only: quien/que/cuando/antes/de
 
 ### CoberturaOS / Liquidacion
 - CoberturaOS: `id`, `tenant_id`, `obra_social (str)`, `prestacion_id`, `arancel (numeric)`, `copago (numeric)`, `vigencia_desde/hasta`, `activa`.
-- Liquidacion: `id`, `tenant_id`, `obra_social`, `periodo (yyyymm)`, `estado (borrador, presentada, pagada, con_debitos)`, `total`, `created_at`.
-- LiquidacionDetalle: `liquidacion_id`, `turno_id`, `monto_reclamado`, `monto_reconocido (nullable)`, `debito_motivo (nullable)`.
-- Constraints: turno liquidable solo si `finalizado` y con OS; un turno en una sola liquidación abierta por OS/período.
+- Liquidacion (cabecera): `id`, `tenant_id`, `obra_social`, `periodo (yyyymm)`, `estado (borrador, presentada, con_debitos, pagada, anulada)`, `total`, `total_reconocido (nullable)`, `observaciones (nullable)`, `turnos_sin_cobertura (int, default 0)`. El débito de cada turno se explica en el detalle (`debito_motivo`).
+- LiquidacionDetalle (una fila por turno): `liquidacion_id`, `turno_id`, `monto_reclamado`, `monto_reconocido (nullable)`, `debito_motivo (nullable)`, `arancel_vencido (bool)`, `vigente (bool)`, `reclamado (bool, default true)`.
+- Constraints: turno liquidable solo si `finalizado` y con OS; un turno se reclama **una sola vez** por obra social y período mientras su liquidación no esté `anulada` (la complementaria sólo incluye los turnos nunca reclamados).
+- Índices únicos parciales: `uq_liquidacion_os_borrador` (`tenant_id`, `lower(obra_social)`, `periodo`) donde `estado = 'borrador'`; `uq_liquidacion_detalle_turno_reclamado` (`tenant_id`, `turno_id`, `lower(obra_social)`, `periodo`) donde `reclamado`.
+- `saldo_debito` es un campo derivado (`total - total_reconocido`), no una columna.
 
 ### Mensaje / Recordatorio (outbox)
 - Atributos: `id`, `tenant_id`, `turno_id (nullable)`, `lista_espera_id (nullable)`, `canal (wa, email)`, `plantilla (str)`, `destino`, `payload (jsonb)`, `estado (pendiente, enviado, entregado, leido, fallido)`, `idempotency_key (único)`, `intentos`, `programado_para`, `enviado_at`, `error (nullable)`.

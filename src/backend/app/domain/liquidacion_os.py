@@ -1,11 +1,12 @@
 """Dominio de liquidaciones mensuales a obras sociales (C-13, US-041, RN-OS-02).
 
 Cumple:
-- RN-OS-02: un turno figura en una sola liquidación abierta por OS/período (índice parcial en DB).
+- RN-OS-02: un turno se reclama una sola vez por obra social y período (índice parcial en DB);
+  sólo la anulación libera el reclamo (D9/D12).
 - R7: la baja de un borrador es lógica (`anulada`), nunca un DELETE físico.
 - R8: los montos son `Decimal` persistidos con `Numeric(12, 2)`; los totales los calcula el server.
 - D4: grafo cerrado de estados; D5: membresía derivada del período calendario UTC.
-- D6: un solo `borrador` simultáneo por OS/período (índice único parcial).
+- D6: un solo `borrador` simultáneo por OS/período (índice único parcial con `lower()`).
 """
 
 import enum
@@ -19,6 +20,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -112,6 +114,8 @@ class LiquidacionOS(Base, TenantMixin, AuditMixin):
     )
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     total_reconocido: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    # D12: el conteo de turnos sin cobertura del alta queda persistido (no se pierde al releer).
+    turnos_sin_cobertura: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
     presentada_por: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("usuario.id", ondelete="RESTRICT"), nullable=True
@@ -157,10 +161,11 @@ class LiquidacionOS(Base, TenantMixin, AuditMixin):
             name="ck_liquidacion_os_anulada_motivo",
         ),
         # D6: un solo borrador simultáneo por OS/período; las complementarias siguen permitidas.
+        # D12: `lower(obra_social)` alinea el índice con la comparación de la app.
         Index(
             "uq_liquidacion_os_borrador",
             "tenant_id",
-            "obra_social",
+            text("lower(obra_social)"),
             "periodo",
             unique=True,
             sqlite_where=text("estado = 'borrador'"),
@@ -183,7 +188,7 @@ class LiquidacionOSDetalle(Base, TenantMixin, AuditMixin):
     turno_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("turno.id", ondelete="RESTRICT"), nullable=False
     )
-    # Copias de la cabecera: habilitan el índice parcial de unicidad del turno abierto (D3).
+    # Copias de la cabecera: habilitan el índice parcial de unicidad del reclamo (D3/D9).
     obra_social: Mapped[str] = mapped_column(String(160), nullable=False)
     periodo: Mapped[str] = mapped_column(String(LARGO_PERIODO), nullable=False)
     monto_reclamado: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -191,19 +196,23 @@ class LiquidacionOSDetalle(Base, TenantMixin, AuditMixin):
     debito_motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
     arancel_vencido: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     vigente: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # D9/D12: el reclamo sigue vigente mientras la liquidación no esté `anulada`; el pago
+    # no lo libera (sólo la anulación, que lo pasa a `false`).
+    reclamado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
         UniqueConstraint("liquidacion_id", "turno_id", name="uq_liquidacion_detalle_turno"),
-        # RN-OS-02: un turno abierto por OS/período; tras anular o pagar queda libre (D3).
+        # RN-OS-02 / D9 / D12: un turno se reclama una sola vez por obra social y período.
+        # `lower(obra_social)` evita el doble reclamo por diferencia de capitalización.
         Index(
-            "uq_liquidacion_detalle_turno_abierto",
+            "uq_liquidacion_detalle_turno_reclamado",
             "tenant_id",
             "turno_id",
-            "obra_social",
+            text("lower(obra_social)"),
             "periodo",
             unique=True,
-            sqlite_where=text("vigente"),
-            postgresql_where=text("vigente"),
+            sqlite_where=text("reclamado"),
+            postgresql_where=text("reclamado"),
         ),
         CheckConstraint(
             "monto_reclamado >= 0 AND (monto_reconocido IS NULL OR "

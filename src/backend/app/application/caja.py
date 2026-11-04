@@ -47,17 +47,11 @@ from app.domain.prestacion import Prestacion
 from app.domain.tenant import Tenant
 from app.domain.turno import ESTADOS_ACTIVOS_AGENDA, EstadoTurno, Turno
 from app.shared.exceptions import Conflicto, EntidadInvalida, NoEncontrado
+from app.shared.montos import CERO, monto_2dp
 
-CERO = Decimal("0.00")
-CENTAVOS = Decimal("0.01")
 HORAS_VENCIMIENTO_SENA_DEFAULT = 24
 CANCELACION_HS_DEFAULT = 24
 CONCEPTO_COBRO_SALDO = "Cobro de saldo de atención"
-
-
-def _monto(valor: object) -> Decimal:
-    """Normaliza cualquier monto persistido a `Decimal` con 2 decimales (R8)."""
-    return Decimal(str(valor)).quantize(CENTAVOS)
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +158,7 @@ async def generar_sena_pendiente(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
         turno_id=turno.id,
-        monto=_monto(prestacion.monto_sena),
+        monto=monto_2dp(prestacion.monto_sena),
         estado=EstadoSena.PENDIENTE.value,
         vence_at=asegurar_utc(vencimiento),
     )
@@ -181,7 +175,7 @@ async def generar_sena_pendiente(
         despues={
             "turno_id": str(turno.id),
             "estado": sena.estado,
-            "monto": str(_monto(sena.monto)),
+            "monto": str(monto_2dp(sena.monto)),
             "vence_at": sena.vence_at.isoformat() if sena.vence_at else None,
         },
     )
@@ -254,7 +248,7 @@ async def _registrar_ingreso(
         tipo=TipoMovimientoCaja.INGRESO.value,
         concepto=concepto,
         medio=medio,
-        monto=_monto(monto),
+        monto=monto_2dp(monto),
         turno_id=turno_id,
         sena_id=sena_id,
         cobro_mp_id=cobro_mp_id,
@@ -286,7 +280,7 @@ async def _registrar_egreso(
         tipo=TipoMovimientoCaja.EGRESO.value,
         concepto=concepto,
         medio=medio,
-        monto=_monto(monto),
+        monto=monto_2dp(monto),
         turno_id=turno_id,
         sena_id=sena_id,
         cobro_mp_id=cobro_mp_id,
@@ -328,7 +322,7 @@ async def cobrar_sena(
         tenant_id=tenant_id,
         concepto="Cobro de seña",
         medio=datos.medio.value,
-        monto=_monto(sena.monto),
+        monto=monto_2dp(sena.monto),
         actor_id=actor_id,
         turno_id=turno.id,
         sena_id=sena.id,
@@ -345,7 +339,7 @@ async def cobrar_sena(
         despues={
             "estado": sena.estado,
             "sena_cobrada": turno.sena_cobrada,
-            "monto": str(_monto(sena.monto)),
+            "monto": str(monto_2dp(sena.monto)),
             "medio": movimiento.medio,
             "movimiento_id": str(movimiento.id),
             "cierre_id": str(movimiento.cierre_id) if movimiento.cierre_id else None,
@@ -509,13 +503,13 @@ async def calcular_liquidacion_turno(
             )
         )
     ).scalar_one_or_none()
-    sena_cobrada = _monto(sena.monto) if sena is not None else CERO
+    sena_cobrada = monto_2dp(sena.monto) if sena is not None else CERO
 
-    saldo = max(CERO, _monto(precio_unit - cobertura_os - sena_cobrada))
+    saldo = max(CERO, monto_2dp(precio_unit - cobertura_os - sena_cobrada))
     return LiquidacionTurnoRead(
         turno_id=turno.id,
-        precio_particular=_monto(precio_unit),
-        cobertura_os=_monto(cobertura_os),
+        precio_particular=monto_2dp(precio_unit),
+        cobertura_os=monto_2dp(cobertura_os),
         sena_cobrada=sena_cobrada,
         saldo=saldo,
         obra_social=obra_social,
@@ -715,7 +709,7 @@ async def registrar_movimiento_caja(
         tipo=datos.tipo.value,
         concepto=datos.concepto,
         medio=datos.medio.value,
-        monto=_monto(datos.monto),
+        monto=monto_2dp(datos.monto),
         turno_id=datos.turno_id,
         sena_id=datos.sena_id,
         cierre_id=cierre.id if cierre is not None else None,
@@ -735,7 +729,7 @@ async def registrar_movimiento_caja(
             "tipo": movimiento.tipo,
             "concepto": movimiento.concepto,
             "medio": movimiento.medio,
-            "monto": str(_monto(movimiento.monto)),
+            "monto": str(monto_2dp(movimiento.monto)),
             "cierre_id": str(movimiento.cierre_id) if movimiento.cierre_id else None,
         },
     )
@@ -778,9 +772,11 @@ async def _total_sistema_cierre(
                 MovimientoCaja.tipo == tipo.value,
             )
         )
-        return _monto(total if total is not None else 0)
+        return monto_2dp(total if total is not None else 0)
 
-    return _monto(await _suma(TipoMovimientoCaja.INGRESO) - await _suma(TipoMovimientoCaja.EGRESO))
+    ingresos = await _suma(TipoMovimientoCaja.INGRESO)
+    egresos = await _suma(TipoMovimientoCaja.EGRESO)
+    return monto_2dp(ingresos - egresos)
 
 
 async def cerrar_caja(
@@ -800,12 +796,12 @@ async def cerrar_caja(
         )
 
     total_sistema = await _total_sistema_cierre(session, tenant_id=tenant_id, cierre_id=cierre.id)
-    total_contado = _monto(datos.total_contado)
-    diferencia = _monto(total_contado - total_sistema)
+    total_contado = monto_2dp(datos.total_contado)
+    diferencia = monto_2dp(total_contado - total_sistema)
 
     antes: dict[str, object] = {
         "estado": cierre.estado,
-        "total_sistema": str(_monto(cierre.total_sistema)),
+        "total_sistema": str(monto_2dp(cierre.total_sistema)),
     }
     cierre.total_sistema = total_sistema
     cierre.total_contado = total_contado
@@ -848,11 +844,11 @@ async def reabrir_caja(
 
     antes: dict[str, object] = {
         "estado": cierre.estado,
-        "total_sistema": str(_monto(cierre.total_sistema)),
+        "total_sistema": str(monto_2dp(cierre.total_sistema)),
         "total_contado": (
-            str(_monto(cierre.total_contado)) if cierre.total_contado is not None else None
+            str(monto_2dp(cierre.total_contado)) if cierre.total_contado is not None else None
         ),
-        "diferencia": str(_monto(cierre.diferencia)) if cierre.diferencia is not None else None,
+        "diferencia": str(monto_2dp(cierre.diferencia)) if cierre.diferencia is not None else None,
         "cerrado_por": str(cierre.cerrado_por) if cierre.cerrado_por else None,
         "cerrado_at": cierre.cerrado_at.isoformat() if cierre.cerrado_at else None,
     }
@@ -875,7 +871,7 @@ async def reabrir_caja(
         despues={
             "estado": cierre.estado,
             "motivo": datos.motivo,
-            "total_sistema": str(_monto(cierre.total_sistema)),
+            "total_sistema": str(monto_2dp(cierre.total_sistema)),
         },
     )
     return cierre

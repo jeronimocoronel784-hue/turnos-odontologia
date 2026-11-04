@@ -12,13 +12,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.domain.cobertura_os import EstadoArancel
 from app.domain.liquidacion_os import EstadoLiquidacionOS, periodo_valido
 
 PATRON_PERIODO = r"^\d{6}$"
 MENSAJE_PERIODO = "El período tiene que tener el formato 'yyyymm' (por ejemplo 202611)."
+MENSAJE_TURNOS_REPETIDOS = "No podés informar el mismo turno más de una vez."
 
 
 def _texto_limpio(valor: str | None) -> str | None:
@@ -27,6 +28,28 @@ def _texto_limpio(valor: str | None) -> str | None:
         return None
     limpio = valor.strip()
     return limpio or None
+
+
+def _exigir_turnos_unicos(detalles: list["LiquidacionOSDetalleDebitoInput"]) -> None:
+    """D10: un `turno_id` repetido haría que el total sume dos veces el mismo turno.
+
+    Se rechaza en el borde (422) para que ni el cliente ni el servidor puedan duplicar
+    el reclamo de un turno (R8: los totales salen del detalle persistido).
+    """
+    vistos: set[uuid.UUID] = set()
+    repetidos: list[uuid.UUID] = []
+    for detalle in detalles:
+        if detalle.turno_id in vistos:
+            if detalle.turno_id not in repetidos:
+                repetidos.append(detalle.turno_id)
+        else:
+            vistos.add(detalle.turno_id)
+    if repetidos:
+        raise ValueError(
+            f"{MENSAJE_TURNOS_REPETIDOS} Se repiten: "
+            + ", ".join(str(turno_id) for turno_id in repetidos)
+            + "."
+        )
 
 
 def _periodo_validado(valor: str) -> str:
@@ -112,6 +135,12 @@ class LiquidacionOSDebitosInput(BaseModel):
     def _limpiar_observaciones(cls, v: str | None) -> str | None:
         return _texto_limpio(v)
 
+    @model_validator(mode="after")
+    def _rechazar_turnos_repetidos(self) -> "LiquidacionOSDebitosInput":
+        """D10: el mismo turno no se debita dos veces (el total se recalcula en servidor)."""
+        _exigir_turnos_unicos(self.detalles)
+        return self
+
 
 class ResultadoOSInput(BaseModel):
     """Resultado informado por la OS: `pagada` (total) o `con_debitos` (con recortes)."""
@@ -132,6 +161,12 @@ class ResultadoOSInput(BaseModel):
         """`con_debitos` sin ningún motivo de recorte no es un resultado válido (US-041)."""
         if self.resultado == "con_debitos" and not any(d.debito_motivo for d in self.detalles):
             raise ValueError("Un resultado con débitos necesita al menos un motivo de recorte.")
+        return self
+
+    @model_validator(mode="after")
+    def _rechazar_turnos_repetidos(self) -> "ResultadoOSInput":
+        """D10: el resultado informa cada turno exactamente una vez (R8)."""
+        _exigir_turnos_unicos(self.detalles)
         return self
 
 
@@ -210,6 +245,18 @@ class LiquidacionOSRead(BaseModel):
     advertencias: list[str] = Field(default_factory=list)
     detalles: list[LiquidacionOSDetalleRead] = Field(default_factory=list)
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def saldo_debito(self) -> Decimal | None:
+        """Saldo pendiente = total reclamado - total reconocido (D4/D10).
+
+        Es `None` mientras la obra social no informó el resultado: sin saldo reconocido
+        no hay deuda que mostrar.
+        """
+        if self.total_reconocido is None:
+            return None
+        return self.total - self.total_reconocido
+
 
 class LiquidacionOSExportacionRead(BaseModel):
     """Borrador de exportación JSON: cabecera + detalle tal como se entrega a la OS (D7)."""
@@ -222,3 +269,11 @@ class LiquidacionOSExportacionRead(BaseModel):
     total: Decimal
     total_reconocido: Decimal | None = None
     detalles: list[LiquidacionOSDetalleRead] = Field(default_factory=list)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def saldo_debito(self) -> Decimal | None:
+        """Saldo pendiente = total reclamado - total reconocido (D4/D10)."""
+        if self.total_reconocido is None:
+            return None
+        return self.total - self.total_reconocido
