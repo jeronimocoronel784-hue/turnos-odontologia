@@ -6,8 +6,6 @@ Verifica:
 3. Generación de preferencias con external_reference, vencimiento y montos exactos.
 """
 
-import hashlib
-import hmac
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -167,9 +165,7 @@ async def test_crear_preferencia_mp_mock() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def _sena_pendiente(
-    session: AsyncSession, tenant: Tenant
-) -> tuple[Sena, Turno, Usuario]:
+async def _sena_pendiente(session: AsyncSession, tenant: Tenant) -> tuple[Sena, Turno, Usuario]:
     """Crea un turno con `requiere_sena` y devuelve su seña `pendiente`."""
     odontologo = Usuario(
         id=uuid.uuid4(),

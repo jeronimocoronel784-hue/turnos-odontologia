@@ -28,7 +28,7 @@ from app.domain.paciente import Paciente
 from app.domain.prestacion import Prestacion
 from app.domain.sillon import Sillon
 from app.domain.tenant import Tenant
-from app.domain.turno import EstadoTurno, Turno
+from app.domain.turno import EstadoTurno
 from app.domain.usuario import RolUsuario, Usuario
 
 MONTO_SENA = Decimal("10000.00")
@@ -194,10 +194,10 @@ async def test_pago_aprobado_con_sena_vencida_marca_discrepancia_sin_mutar(
     assert ctx.turno.estado == EstadoTurno.CANCELADO.value
     assert ctx.turno.sena_cobrada is False
     movimientos = (
-        await session.execute(
-            select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)
-        )
-    ).scalars().all()
+        (await session.execute(select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)))
+        .scalars()
+        .all()
+    )
     assert movimientos == []
 
 
@@ -220,10 +220,10 @@ async def test_pago_aprobado_con_monto_distinto_marca_discrepancia(
     assert ctx.sena.estado == EstadoSena.PENDIENTE.value
     assert ctx.sena.mp_payment_id is None
     movimientos = (
-        await session.execute(
-            select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)
-        )
-    ).scalars().all()
+        (await session.execute(select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)))
+        .scalars()
+        .all()
+    )
     assert movimientos == []
 
 
@@ -312,10 +312,10 @@ async def test_conciliar_cobros_aplica_pagos_consistentes_y_marca_discrepancias(
     assert ok.sena.mp_payment_id == cobro_ok.mp_payment_id
     assert ok.turno.sena_cobrada is True
     movimientos_ok = (
-        await session.execute(
-            select(MovimientoCaja).where(MovimientoCaja.sena_id == ok.sena.id)
-        )
-    ).scalars().all()
+        (await session.execute(select(MovimientoCaja).where(MovimientoCaja.sena_id == ok.sena.id)))
+        .scalars()
+        .all()
+    )
     assert len(movimientos_ok) == 1
     assert movimientos_ok[0].cobro_mp_id == cobro_ok.id
 
@@ -324,10 +324,14 @@ async def test_conciliar_cobros_aplica_pagos_consistentes_y_marca_discrepancias(
     assert cobro_tardio.estado_conciliacion == EstadoConciliacionMP.DISCREPANCIA.value
     assert tardio.sena.estado == EstadoSena.VENCIDA.value
     movimientos_tardio = (
-        await session.execute(
-            select(MovimientoCaja).where(MovimientoCaja.sena_id == tardio.sena.id)
+        (
+            await session.execute(
+                select(MovimientoCaja).where(MovimientoCaja.sena_id == tardio.sena.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert movimientos_tardio == []
 
 
@@ -422,9 +426,7 @@ async def test_webhook_race_de_reintentos_captura_integrity_error_y_responde_dup
     import app.application.mercadopago as modulo
 
     ctx = await _preparar_escenario(session, tenant_a)
-    existente = _cobro_pendiente(
-        ctx, "mp-race-integrity-009", estado_mp=EstadoMP.APPROVED.value
-    )
+    existente = _cobro_pendiente(ctx, "mp-race-integrity-009", estado_mp=EstadoMP.APPROVED.value)
     existente.estado_conciliacion = EstadoConciliacionMP.CONCILIADO.value
     session.add(existente)
     await session.commit()
@@ -450,8 +452,12 @@ async def test_webhook_race_de_reintentos_captura_integrity_error_y_responde_dup
     assert resultado.cobro.mp_payment_id == "mp-race-integrity-009"
 
     cobros = (
-        await session.execute(
-            select(CobroMP).where(CobroMP.mp_payment_id == "mp-race-integrity-009")
+        (
+            await session.execute(
+                select(CobroMP).where(CobroMP.mp_payment_id == "mp-race-integrity-009")
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(cobros) == 1

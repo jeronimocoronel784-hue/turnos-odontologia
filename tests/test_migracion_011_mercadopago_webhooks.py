@@ -13,18 +13,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.caja import Sena
 from app.domain.mercadopago import CobroMP, EstadoConciliacionMP, EstadoMP
-from app.domain.paciente import Paciente
-from app.domain.prestacion import Prestacion
-from app.domain.sillon import Sillon
 from app.domain.tenant import Tenant
-from app.domain.turno import Turno
-from app.domain.usuario import RolUsuario, Usuario
 
 
 def test_enums_mercadopago() -> None:

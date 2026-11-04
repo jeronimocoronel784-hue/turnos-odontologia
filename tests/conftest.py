@@ -30,8 +30,8 @@ import app.domain.caja  # noqa: F401
 import app.domain.clinica  # noqa: F401
 import app.domain.cobertura_os  # noqa: F401
 import app.domain.ficha_clinica  # noqa: F401
-import app.domain.lista_espera  # noqa: F401
 import app.domain.liquidacion_os  # noqa: F401
+import app.domain.lista_espera  # noqa: F401
 import app.domain.mensaje  # noqa: F401
 import app.domain.mercadopago  # noqa: F401
 import app.domain.paciente  # noqa: F401

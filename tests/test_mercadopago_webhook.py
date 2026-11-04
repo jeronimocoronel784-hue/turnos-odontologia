@@ -29,7 +29,7 @@ from app.domain.paciente import Paciente
 from app.domain.prestacion import Prestacion
 from app.domain.sillon import Sillon
 from app.domain.tenant import Tenant
-from app.domain.turno import EstadoTurno, Turno
+from app.domain.turno import EstadoTurno
 from app.domain.usuario import RolUsuario, Usuario
 from app.infrastructure.mercadopago.client import calcular_firma_mp
 
@@ -186,9 +186,7 @@ async def test_webhook_approved_confirma_sena_caja_y_persiste_payload_crudo(
     assert cobro.payload["action"] == "payment.updated"
 
     movimiento = (
-        await session.execute(
-            select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)
-        )
+        await session.execute(select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id))
     ).scalar_one()
     assert movimiento.tipo == TipoMovimientoCaja.INGRESO.value
     assert movimiento.medio == MedioPago.MP.value
@@ -226,15 +224,17 @@ async def test_webhook_duplicado_responde_200_sin_duplicar_movimientos_ni_estado
     assert ctx.sena.estado == EstadoSena.COBRADA.value
 
     cobros = (
-        await session.execute(select(CobroMP).where(CobroMP.mp_payment_id == payment_id))
-    ).scalars().all()
+        (await session.execute(select(CobroMP).where(CobroMP.mp_payment_id == payment_id)))
+        .scalars()
+        .all()
+    )
     assert len(cobros) == 1
 
     movimientos = (
-        await session.execute(
-            select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)
-        )
-    ).scalars().all()
+        (await session.execute(select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)))
+        .scalars()
+        .all()
+    )
     assert len(movimientos) == 1
 
 
@@ -285,13 +285,17 @@ async def test_webhook_refunded_devuelve_sena_y_registra_egreso_idempotente(
     assert cobro.estado_mp == EstadoMP.REFUNDED.value
 
     egresos = (
-        await session.execute(
-            select(MovimientoCaja).where(
-                MovimientoCaja.sena_id == ctx.sena.id,
-                MovimientoCaja.tipo == TipoMovimientoCaja.EGRESO.value,
+        (
+            await session.execute(
+                select(MovimientoCaja).where(
+                    MovimientoCaja.sena_id == ctx.sena.id,
+                    MovimientoCaja.tipo == TipoMovimientoCaja.EGRESO.value,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(egresos) == 1
     assert egresos[0].medio == MedioPago.MP.value
     assert egresos[0].cobro_mp_id == cobro.id
@@ -304,13 +308,17 @@ async def test_webhook_refunded_devuelve_sena_y_registra_egreso_idempotente(
     assert repetido.status_code == 200
     assert repetido.json()["duplicados"] == 1
     egresos_tras_reintento = (
-        await session.execute(
-            select(MovimientoCaja).where(
-                MovimientoCaja.sena_id == ctx.sena.id,
-                MovimientoCaja.tipo == TipoMovimientoCaja.EGRESO.value,
+        (
+            await session.execute(
+                select(MovimientoCaja).where(
+                    MovimientoCaja.sena_id == ctx.sena.id,
+                    MovimientoCaja.tipo == TipoMovimientoCaja.EGRESO.value,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(egresos_tras_reintento) == 1
 
 
@@ -353,9 +361,7 @@ async def test_webhook_pago_aprobado_sobre_turno_cancelado_marca_discrepancia(
     assert resp.json()["discrepancias"] == 1
 
     cobro = (
-        await session.execute(
-            select(CobroMP).where(CobroMP.mp_payment_id == "mp-pay-tardio-006")
-        )
+        await session.execute(select(CobroMP).where(CobroMP.mp_payment_id == "mp-pay-tardio-006"))
     ).scalar_one()
     assert cobro.estado_conciliacion == EstadoConciliacionMP.DISCREPANCIA.value
 
@@ -365,10 +371,10 @@ async def test_webhook_pago_aprobado_sobre_turno_cancelado_marca_discrepancia(
     assert ctx.turno.estado == EstadoTurno.CANCELADO.value
     assert ctx.turno.sena_cobrada is False
     movimientos = (
-        await session.execute(
-            select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)
-        )
-    ).scalars().all()
+        (await session.execute(select(MovimientoCaja).where(MovimientoCaja.sena_id == ctx.sena.id)))
+        .scalars()
+        .all()
+    )
     assert movimientos == []
 
     eventos = await session.execute(
