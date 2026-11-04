@@ -18,7 +18,11 @@ Notas de diseño:
   diseño §Modelo de datos); al releer se derivan del snapshot `arancel_vencido` del detalle.
 """
 
+import csv
+import io
+import json
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -31,6 +35,7 @@ from app.api.schemas_liquidaciones import (
     LiquidacionOSCreate,
     LiquidacionOSDebitosInput,
     LiquidacionOSDetalleRead,
+    LiquidacionOSExportacionRead,
     LiquidacionOSRead,
     ResultadoOSInput,
 )
@@ -215,6 +220,46 @@ async def _armar_read(
         advertencias=advertencias,
         detalles=filas,
     )
+
+
+async def obtener_liquidacion_read(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    liquidacion_id: uuid.UUID,
+) -> LiquidacionOSRead:
+    """Detalle completo de una liquidación del tenant (404 si es de otro consultorio, R4)."""
+    liquidacion = await obtener_liquidacion(
+        session, tenant_id=tenant_id, liquidacion_id=liquidacion_id
+    )
+    return await _armar_read(session, liquidacion)
+
+
+async def listar_liquidaciones(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    obra_social: str | None = None,
+    periodo: str | None = None,
+    estado: EstadoLiquidacionOS | None = None,
+) -> list[LiquidacionOSRead]:
+    """Lista las liquidaciones del tenant con filtros de OS, período y estado (R4)."""
+    consulta = select(LiquidacionOS).where(LiquidacionOS.tenant_id == tenant_id)
+    if obra_social is not None and obra_social.strip():
+        consulta = consulta.where(
+            func.lower(LiquidacionOS.obra_social) == obra_social.strip().lower()
+        )
+    if periodo is not None:
+        consulta = consulta.where(LiquidacionOS.periodo == periodo)
+    if estado is not None:
+        consulta = consulta.where(LiquidacionOS.estado == estado.value)
+    consulta = consulta.order_by(
+        LiquidacionOS.periodo.desc(),
+        LiquidacionOS.obra_social.asc(),
+        LiquidacionOS.created_at.desc(),
+    )
+    liquidaciones = (await session.execute(consulta)).scalars().all()
+    return [await _armar_read(session, liquidacion) for liquidacion in liquidaciones]
 
 
 async def _resolver_coberturas_por_dia(
@@ -703,3 +748,124 @@ async def anular_liquidacion(
         despues=despues,
     )
     return await _armar_read(session, liquidacion)
+
+
+# ---------------------------------------------------------------------------
+# Exportación (D7, RN-OS-03)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ExportacionLiquidacion:
+    """Archivo de exportación ya armado en memoria (R3): contenido, tipo MIME y nombre."""
+
+    contenido: bytes
+    media_type: str
+    nombre_archivo: str
+
+    def cabeceras(self) -> dict[str, str]:
+        """Headers HTTP de la descarga, sin datos sensibles en la URL (R9)."""
+        return {
+            "Content-Disposition": f'attachment; filename="{self.nombre_archivo}"',
+            "Cache-Control": "no-store",
+        }
+
+
+FORMATOS_EXPORTACION = frozenset({"csv", "json"})
+
+# D7: una fila por turno, sin datos del paciente (R9).
+COLUMNAS_EXPORTACION = (
+    "periodo",
+    "obra_social",
+    "estado",
+    "estado_arancel",
+    "turno_id",
+    "fecha_turno",
+    "prestacion",
+    "monto_reclamado",
+    "monto_reconocido",
+    "debito_motivo",
+)
+
+
+def _slug_archivo(obra_social: str) -> str:
+    """Nombre de archivo seguro: sin espacios, comillas ni saltos de línea (R9)."""
+    normalizado = " ".join(obra_social.split())
+    limpio = "".join(
+        caracter if caracter.isalnum() or caracter in "-_" else "-" for caracter in normalizado
+    )
+    return limpio.strip("-") or "os"
+
+
+def _texto_monto(monto: Decimal | None) -> str:
+    """Monto con punto decimal y dos decimales; vacío si la OS todavía no informó (D7)."""
+    return "" if monto is None else str(_monto(monto))
+
+
+def _fila_csv(liquidacion: LiquidacionOSRead, detalle: LiquidacionOSDetalleRead) -> list[str]:
+    """Fila del export: cabecera repetida por turno para que el archivo se lea solo."""
+    return [
+        liquidacion.periodo,
+        liquidacion.obra_social,
+        liquidacion.estado.value,
+        "vencido" if detalle.arancel_vencido else "vigente",
+        str(detalle.turno_id),
+        detalle.fecha_turno.date().isoformat(),
+        detalle.prestacion,
+        _texto_monto(detalle.monto_reclamado),
+        _texto_monto(detalle.monto_reconocido),
+        detalle.debito_motivo or "",
+    ]
+
+
+def _exportar_csv(liquidacion: LiquidacionOSRead) -> bytes:
+    """CSV UTF-8 con BOM, separador `,` y quoting/CRLF de RFC 4180 (D7)."""
+    buffer = io.StringIO(newline="")
+    escritor = csv.writer(buffer, delimiter=",", quotechar='"', lineterminator="\r\n")
+    escritor.writerow(COLUMNAS_EXPORTACION)
+    escritor.writerows(_fila_csv(liquidacion, detalle) for detalle in liquidacion.detalles)
+    # El BOM ayuda a Excel a detectar UTF-8 con acentos sin configuración extra.
+    return ("\ufeff" + buffer.getvalue()).encode("utf-8")
+
+
+def _exportar_json(liquidacion: LiquidacionOSRead) -> bytes:
+    """JSON con cabecera + detalle; `Decimal` viaja como string para no perder centavos (R8)."""
+    exportacion = LiquidacionOSExportacionRead(
+        obra_social=liquidacion.obra_social,
+        periodo=liquidacion.periodo,
+        estado=liquidacion.estado,
+        total=liquidacion.total,
+        total_reconocido=liquidacion.total_reconocido,
+        detalles=liquidacion.detalles,
+    )
+    return json.dumps(exportacion.model_dump(mode="json"), ensure_ascii=False, indent=2).encode(
+        "utf-8"
+    )
+
+
+async def exportar_liquidacion(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    liquidacion_id: uuid.UUID,
+    formato: str = "csv",
+) -> ExportacionLiquidacion:
+    """Exporta la liquidación del tenant (D7). El contenido se arma en servidor (R8)."""
+    formato_limpio = formato.strip().lower()
+    if formato_limpio not in FORMATOS_EXPORTACION:
+        raise EntidadInvalida("Che, el formato de la exportación tiene que ser 'csv' o 'json'.")
+
+    liquidacion = await obtener_liquidacion_read(
+        session, tenant_id=tenant_id, liquidacion_id=liquidacion_id
+    )
+    contenido = (
+        _exportar_csv(liquidacion) if formato_limpio == "csv" else _exportar_json(liquidacion)
+    )
+    return ExportacionLiquidacion(
+        contenido=contenido,
+        media_type="text/csv" if formato_limpio == "csv" else "application/json",
+        nombre_archivo=(
+            f"liquidacion-{_slug_archivo(liquidacion.obra_social)}-"
+            f"{liquidacion.periodo}.{formato_limpio}"
+        ),
+    )

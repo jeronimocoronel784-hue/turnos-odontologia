@@ -75,7 +75,12 @@ def _matriz() -> dict[Recurso, dict[str, frozenset[Accion]]]:
             recepcion: CRUD,
             odontologo: SOLO_LECTURA,
         },
-        Recurso.LIQUIDACIONES: {dueno: CRUD, recepcion: CRUD, odontologo: SOLO_LECTURA},
+        # C-13 / D8: Dueño y Recepción liquidan y exportan; el Odontólogo sólo consulta.
+        Recurso.LIQUIDACIONES: {
+            dueno: _permisos(*CRUD, Accion.EXPORTAR),
+            recepcion: _permisos(*CRUD, Accion.EXPORTAR),
+            odontologo: SOLO_LECTURA,
+        },
         Recurso.MENSAJES: {
             dueno: CRUD,
             recepcion: _permisos(Accion.LEER, Accion.REENVIAR),

@@ -43,7 +43,12 @@ ESPERADO: dict[Recurso, dict[str, frozenset[Accion]]] = {
         RECEPCION: CRUD,
         ODONTOLOGO: R,
     },
-    Recurso.LIQUIDACIONES: {DUENO: CRUD, RECEPCION: CRUD, ODONTOLOGO: R},
+    # C-13 / D8: Dueño y Recepción liquidan y exportan; el Odontólogo sólo consulta.
+    Recurso.LIQUIDACIONES: {
+        DUENO: frozenset({*CRUD, Accion.EXPORTAR}),
+        RECEPCION: frozenset({*CRUD, Accion.EXPORTAR}),
+        ODONTOLOGO: R,
+    },
     Recurso.MENSAJES: {
         DUENO: CRUD,
         RECEPCION: frozenset({Accion.LEER, Accion.REENVIAR}),

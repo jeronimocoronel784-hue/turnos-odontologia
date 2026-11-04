@@ -57,12 +57,12 @@
 
 ## 4. API, RBAC y exportación
 
-- [ ] 4.1 **Router `/api/liquidaciones` completo, matriz RBAC y registro en `main.py`** (TDD)
+- [x] 4.1 **Router `/api/liquidaciones` completo, matriz RBAC y registro en `main.py`** (TDD)
   - Crear `src/backend/app/api/routers/liquidaciones.py` con `POST/GET/GET {id}/PATCH`, `POST /{id}/cerrar`, `POST /{id}/resultado`, `DELETE /{id}` (body `{motivo}`) y `GET /{id}/exportar`, tomando `tenant_id` y actores del JWT (`R4`). Ajustar `MATRIZ[Recurso.LIQUIDACIONES]` a `Dueño: CRUD + EXPORTAR`, `Recepción: CRUD + EXPORTAR`, `Odontólogo: SOLO_LECTURA` (D8) y montar el router en `main.py` y en `tests/conftest.py`.
   - Verificar con `tests/test_liquidaciones_api.py`: ciclo completo `POST → PATCH → /cerrar → /resultado → DELETE` sobre otro borrador; `403` para Odontólogo en crear/editar/presentar/anular/exportar y `200` en `GET`; `404` para liquidaciones de otro tenant; `409` por doble borrador; `422` por período inválido; respuesta con `detalles` y `arancel_vencido` por fila.
   - Actualizar `tests/test_rbac_matriz.py` con los permisos nuevos de exportación sobre `LIQUIDACIONES`.
 
-- [ ] 4.2 **Exportación CSV y JSON generada en servidor (`RN-OS-03`, `R8`, `R9`)** (TDD)
+- [x] 4.2 **Exportación CSV y JSON generada en servidor (`RN-OS-03`, `R8`, `R9`)** (TDD)
   - Implementar `exportar_liquidacion` (D7): CSV UTF-8 con BOM, separador `,`, decimal `.`, quoting RFC 4180 y una fila por turno con montos y `debito_motivo`; JSON con cabecera + detalle y `Decimal` como string. `Content-Disposition: attachment; filename="liquidacion-{os}-{periodo}.{ext}"`.
   - Verificar con `tests/test_liquidaciones_export.py`: CSV de una liquidación `con_debitos` incluye el `debito_motivo` y no incluye DNI/teléfono del paciente; JSON incluye cabecera y las tres filas; `formato=xml` → `422`; `403` para Odontólogo; el contenido no depende de parámetros de monto enviados por el cliente.
 
