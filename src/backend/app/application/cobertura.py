@@ -261,9 +261,7 @@ async def consultar_cobertura(
         fecha_turno = asegurar_utc(turno.inicio).date()
 
     if prestacion_id is None:
-        raise EntidadInvalida(
-            "Che, indicá la prestación o el turno para consultar la cobertura."
-        )
+        raise EntidadInvalida("Che, indicá la prestación o el turno para consultar la cobertura.")
 
     os_normalizada = _obra_social_normalizada(obra_social)
     resolucion = await resolver_cobertura_prestacion(

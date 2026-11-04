@@ -242,7 +242,11 @@ async def test_lookup_por_turno_deriva_la_prestacion_y_la_fecha(
     )
     odontologo, paciente, sillon, prestacion = await _consultorio(session, tenant_a)
     await _convenio(
-        session, tenant_a, prestacion, vigencia_hasta=date(2026, 10, 31), vigencia_desde=date(2026, 1, 1)
+        session,
+        tenant_a,
+        prestacion,
+        vigencia_hasta=date(2026, 10, 31),
+        vigencia_desde=date(2026, 1, 1),
     )
     turno = await _turno(
         session,

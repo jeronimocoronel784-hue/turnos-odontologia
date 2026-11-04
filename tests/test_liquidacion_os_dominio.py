@@ -20,7 +20,10 @@ from app.shared.exceptions import EntidadInvalida
 
 
 def test_grafo_de_estados_permite_el_ciclo_de_la_liquidacion() -> None:
-    """D4: borrador -> presentada|anulada; presentada -> pagada|con_debitos; con_debitos -> pagada."""
+    """D4: borrador -> presentada|anulada; presentada -> pagada|con_debitos.
+
+    `con_debitos` sólo puede pasar a `pagada`.
+    """
     assert es_transicion_liquidacion_valida(
         EstadoLiquidacionOS.BORRADOR, EstadoLiquidacionOS.PRESENTADA
     )

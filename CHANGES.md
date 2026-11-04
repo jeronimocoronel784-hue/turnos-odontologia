@@ -363,14 +363,15 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-13] `obras-sociales-liquidacion`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` implementado en `openspec/changes/c-13-obras-sociales-liquidacion/` — cobertura compartida (`domain/cobertura_os.py` + `application/cobertura.py`) reutilizada por presupuestos (`C-10`) y caja (`C-11`), modelos `LiquidacionOS`/`LiquidacionOSDetalle` + migración `012_obras_sociales_liquidacion` (encadenada sobre la migración de `C-12`), casos de uso de borrador/débitos/presentación/resultado/anulación con auditoría append-only (`RN-SE-01`), endpoints `/api/os/cobertura` y `/api/liquidaciones*` con exportación CSV/JSON en servidor. Tests: `tests/test_cobertura_resolucion.py` (10), `tests/test_cobertura_servicio.py` (6), `tests/test_os_cobertura_api.py` (9), `tests/test_liquidacion_os_dominio.py` (9), `tests/test_schemas_liquidaciones.py` (13), `tests/test_liquidaciones_negocio.py` (20), `tests/test_liquidaciones_estados.py` (12), `tests/test_liquidaciones_unicidad.py` (6), `tests/test_liquidaciones_api.py` (11), `tests/test_liquidaciones_export.py` (8) y `tests/test_migracion_012_obras_sociales_liquidacion.py` (8).
 - **Scope**: Cobertura calculada en el turno + liquidación exportable con débitos (Flujo 5)
-  - Cálculo en agenda/cobro: `a_cargo = precio − cobertura` por arancel vigente; sin cobertura vigente → particular; arancel vencido alerta y usa vigente con aviso (RN-OS-01)
-  - Modelos `LiquidacionOS` (`borrador→presentada→pagada|con_debitos`, por OS/período `yyyymm`) + detalle por turno (reclamado/reconocido/motivo débito)
-  - Solo turnos `finalizado` entran; un turno en una sola liquidación abierta por OS/período (constraint, RN-OS-02); v1 sin presentación electrónica (RN-OS-03)
-  - Endpoints: `/api/os/cobertura` (lookup), `/api/liquidaciones` CRUD + `/cerrar` + `/exportar` (CSV/JSON)
-  - Migración 011: tablas `liquidacion_os`, `liquidacion_detalle`
-  - Tests: turno no finalizado rechazado, doble liquidación del mismo turno rechazada, export CSV/JSON con débitos
+  - Cálculo en agenda/cobro: `a_cargo = precio − cobertura` por arancel vigente; sin cobertura vigente → particular; arancel vencido alerta y usa el arancel más reciente con aviso (`RN-OS-01`, `D2`). Resolución única compartida con `C-10`/`C-11` vía `domain/cobertura_os.py` (función pura) y `application/cobertura.py` (loaders async, sin N+1)
+  - Modelos `LiquidacionOS` + `LiquidacionOSDetalle` por OS/período `yyyymm`, estados `borrador → presentada → pagada | con_debitos` y `borrador → anulada` (terminales `pagada` y `anulada`, `R7`), con detalle por turno (`monto_reclamado`/`monto_reconocido`/`debito_motivo`/`arancel_vencido`/`vigente`)
+  - Solo turnos `finalizado` entran; un turno en una sola liquidación abierta por OS/período (`409` en aplicación + índice único parcial `uq_liquidacion_detalle_turno_abierto`, `RN-OS-02`); v1 sin presentación electrónica (`RN-OS-03`)
+  - Endpoints: `/api/os/cobertura` (lookup por `prestacion_id` o `turno_id`), `POST/GET /api/liquidaciones`, `GET/PATCH /api/liquidaciones/{id}`, `POST /{id}/cerrar`, `POST /{id}/resultado`, `DELETE /{id}` (baja lógica con motivo) y `GET /{id}/exportar?formato=csv|json`
+  - RBAC `Recurso.LIQUIDACIONES` (`D8`): Dueño y Recepción con CRUD + `Accion.EXPORTAR`; Odontólogo `SOLO_LECTURA` (consulta cobertura y liquidaciones, `403` al crear/editar/presentar/anular/exportar)
+  - Migración `012_obras_sociales_liquidacion`: tablas `liquidacion_os` y `liquidacion_detalle` con `CHECK`, índices únicos parciales, FK `RESTRICT` y `GRANT/REVOKE` para `turnos_app`
+  - Tests: turno no finalizado rechazado, doble liquidación del mismo turno rechazada, export CSV/JSON con débitos sin PHI del paciente
 - **Dependencias**: C-04, C-06
 - **Governance**: MEDIO
 - **Leer antes**:

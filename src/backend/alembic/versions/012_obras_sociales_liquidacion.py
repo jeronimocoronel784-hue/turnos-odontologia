@@ -207,8 +207,7 @@ def downgrade() -> None:
     es_pg = bind.dialect.name == "postgresql"
     if es_pg:
         op.execute(
-            "REVOKE ALL PRIVILEGES ON TABLE "
-            "liquidacion_os, liquidacion_detalle FROM turnos_app"
+            "REVOKE ALL PRIVILEGES ON TABLE liquidacion_os, liquidacion_detalle FROM turnos_app"
         )
 
     op.drop_index("ix_liquidacion_detalle_tenant_turno", table_name="liquidacion_detalle")

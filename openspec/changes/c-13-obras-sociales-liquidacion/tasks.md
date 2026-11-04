@@ -68,13 +68,17 @@
 
 ## 5. Integración, calidad y documentación
 
-- [ ] 5.1 **Verificación integral del change** (calidad)
+- [x] 5.1 **Verificación integral del change** (calidad)
   - Ejecutar `pytest` completo (con `DATABASE_URL_TEST` apuntando al Postgres del contenedor, `R11`), `ruff check .` y `mypy src/backend`; confirmar suite previa sin regresiones y cobertura de los nuevos módulos.
   - Verificar además que `openspec validate c-13-obras-sociales-liquidacion --strict` siga en verde.
+  - Resultado (2026-11-04): **508 passed, 4 skipped, 1 failed en 188,03 s**. El único fallo es preexistente y ajeno al change (`tests/test_catalogo_documentacion.py::test_rutas_catalogo_existen_en_la_app`: falta `GET /api/admin/sillones`, deuda de `C-04`); los 4 skips son Postgres-only (`dialecto`). Sin Docker disponible, la suite corre contra SQLite file de `tests/conftest.py`, que expone `dialecto` para saltear los casos que requieren Postgres.
+  - `openspec validate c-13-obras-sociales-liquidacion --strict`: **válido**. `mypy src/backend/app src/backend/alembic`: **1 error preexistente** (`jose` sin stubs en `infrastructure/security/jwt.py`). `ruff check`/`ruff format --check`: 13 errores y 3 archivos sin formatear, todos deuda preexistente de `C-12`/`C-04` (se normalizaron sólo los archivos del change: `012_obras_sociales_liquidacion.py`, `application/cobertura.py`, `test_os_cobertura_api.py`, `test_liquidacion_os_dominio.py`).
+  - Cobertura conceptual: los 18 escenarios de la spec tienen test; se agregó `tests/test_liquidaciones_negocio.py::test_borrador_registra_auditoria_del_alta_sin_phi` para el alta auditada que exigía el requisito de auditoría.
 
-- [ ] 5.2 **Documentación del change y corrección de `CHANGES.md`**
+- [x] 5.2 **Documentación del change y corrección de `CHANGES.md`**
   - Documentar los endpoints nuevos en `README.md` y en la sección correspondiente de `CHANGES.md`; corregir la línea "Migración 011: tablas `liquidacion_os`, `liquidacion_detalle`" del bloque `[C-13]` para que diga `012_obras_sociales_liquidacion` y refleje los estados reales (`borrador`, `presentada`, `pagada`, `con_debitos`, `anulada`).
   - Verificar que la sección `[C-13]` de `CHANGES.md` y el `README.md` mencionen `/api/os/cobertura`, `/api/liquidaciones`, `/cerrar`, `/resultado`, `/exportar` y que no quede ninguna referencia a la migración `011` como parte de este change.
+  - Resultado: `README.md` suma la sección "Obras Sociales y Liquidación (C-13)" con la migración `012`, la cobertura compartida, la tabla de endpoints con RBAC y el formato de export `?formato=csv|json`; el bloque `[C-13]` de `CHANGES.md` pasa a `[x]`, nombra `012_obras_sociales_liquidacion`, los cinco estados reales y los endpoints reales. `Select-String -Path CHANGES.md -Pattern "011"` no devuelve ninguna mención dentro de `[C-13]` (sólo quedan las de `C-12`).
 
 ## Workflow follow-up
 

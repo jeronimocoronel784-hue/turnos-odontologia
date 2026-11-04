@@ -291,6 +291,37 @@ async def test_borrador_excluye_turnos_no_finalizados(
     assert otro.id not in turnos
 
 
+async def test_borrador_registra_auditoria_del_alta_sin_phi(
+    session: AsyncSession, tenant_a: Tenant
+) -> None:
+    """RN-SE-01 / R9: el alta deja un evento append-only con montos y sin datos del paciente."""
+    ctx = await _seed_consultorio(session, tenant_a)
+    turno = await _crear_turno(session, tenant_a, ctx)
+
+    borrador = await _borrador(session, tenant_a, ctx)
+
+    eventos = list(
+        (await session.execute(select(Auditoria).where(Auditoria.accion == "liquidacion.crear")))
+        .scalars()
+        .all()
+    )
+    assert len(eventos) == 1
+    evento = eventos[0]
+    assert evento.tenant_id == tenant_a.id
+    assert evento.actor_id == ctx.usuario.id
+    assert evento.entidad == "liquidacion_os"
+    assert evento.entidad_id == str(borrador.id)
+    assert evento.antes is None
+    assert evento.despues is not None
+    assert evento.despues["estado"] == "borrador"
+    assert evento.despues["total"] == "30000.00"
+    assert evento.despues["turnos"] == 1
+    payload = json.dumps(evento.despues, ensure_ascii=False)
+    assert str(turno.id) not in payload
+    assert ctx.paciente.dni not in payload
+    assert ctx.paciente.telefono not in payload
+
+
 async def test_borrador_informa_los_turnos_sin_cobertura(
     session: AsyncSession, tenant_a: Tenant
 ) -> None:

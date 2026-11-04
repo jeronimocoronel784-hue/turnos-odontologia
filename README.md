@@ -335,6 +335,38 @@ pytest.ini / .env.example / .github/workflows/ci.yml
   - `GET /api/pagos/mercadopago/cobros` y `GET /api/pagos/mercadopago/discrepancias` filtran por `sena_id`, `turno_id`, `estado_mp`, `estado_conciliacion`, `limite` y `offset`; el motivo de cada discrepancia se deriva del estado actual de seña/turno/monto.
   - Ambos endpoints usan `Recurso.CAJA` + `Accion.ACTUALIZAR`: Dueño y Recepción operan la conciliación (`200`), el Odontólogo recibe `403`.
 
+## Obras Sociales y Liquidación (C-13)
+
+- **Migración `012_obras_sociales_liquidacion`** (encadenada sobre la migración de `C-12`): crea `liquidacion_os` y `liquidacion_detalle` con `CHECK` de estado/período/montos, índices únicos parciales (`uq_liquidacion_os_borrador`, `uq_liquidacion_detalle_turno_abierto`), FK con `RESTRICT` hacia cabecera/turno y permisos `GRANT/REVOKE` para `turnos_app`.
+- **Cobertura compartida (`RN-OS-01`, `R8`)**:
+  - `domain/cobertura_os.py` implementa la resolución pura (`vigente` → último arancel cargado → particular) y `application/cobertura.py` los loaders async; presupuestos (`C-10`) y caja (`C-11`) delegan ahí sin cambiar su contrato.
+  - Sin convenio vigente se factura como particular (`cobertura = 0`); un arancel vencido **avisa** y usa el arancel más reciente en lugar de facturar como particular.
+  - `GET /api/os/cobertura` resuelve por `prestacion_id` o por `turno_id` (deriva prestación y fecha del turno) con `obra_social` y `fecha` de referencia opcionales; devuelve `precio_particular`, `cobertura`, `monto_a_cargo`, `estado_arancel` (`vigente|vencido|sin_cobertura`), vigencias, `arancel_vencido` y `advertencia`. Los montos viajan como `Decimal` serializado a string.
+- **Liquidación mensual por OS y período (`RN-OS-02`, `US-041`)**:
+  - `POST /api/liquidaciones` arma el `borrador` con los turnos `finalizado` cuyo inicio cae en el período `yyyymm` y que tienen convenio con la OS; informa `turnos_sin_cobertura` y `advertencias` (incluida la liquidación complementaria si el período ya tiene una `pagada`).
+  - Estados: `borrador → presentada → pagada | con_debitos`; `borrador → anulada`. `pagada` y `anulada` son terminales.
+  - Un turno no puede estar en dos liquidaciones abiertas de la misma OS/período (`409` en la aplicación + índice único parcial en la base).
+  - Los débitos se registran por turno con `monto_reconocido` y `debito_motivo` obligatorio en cada recorte; `total` y `total_reconocido` se recalculan siempre en el servidor.
+- **Endpoints (`Recurso.LIQUIDACIONES`)**:
+
+| Método | Ruta | Qué hace | Dueño | Recepción | Odontólogo |
+|---|---|---|---|---|---|
+| `GET` | `/api/os/cobertura` | Lookup de cobertura y monto a cargo | sí | sí | sí |
+| `POST` | `/api/liquidaciones` | Genera el borrador del período (`201`) | sí | sí | `403` |
+| `GET` | `/api/liquidaciones` | Lista filtrable por `obra_social`, `periodo`, `estado` | sí | sí | sí |
+| `GET` | `/api/liquidaciones/{id}` | Detalle con una fila por turno | sí | sí | sí |
+| `PATCH` | `/api/liquidaciones/{id}` | Registra débitos del borrador (`409` si no es `borrador`) | sí | sí | `403` |
+| `POST` | `/api/liquidaciones/{id}/cerrar` | Presenta el borrador (`422` si está vacío) | sí | sí | `403` |
+| `POST` | `/api/liquidaciones/{id}/resultado` | Registra `pagada` o `con_debitos` según lo que reconoció la OS | sí | sí | `403` |
+| `DELETE` | `/api/liquidaciones/{id}` | Anula por baja lógica con `{motivo}` (`R7`) | sí | sí | `403` |
+| `GET` | `/api/liquidaciones/{id}/exportar` | Descarga la liquidación (`?formato=csv\|json`) | sí | sí | `403` |
+
+- **Exportación generada en servidor (`RN-OS-03`, `R9`)**:
+  - `GET /api/liquidaciones/{id}/exportar?formato=csv|json` (por defecto `csv`) responde con `Content-Disposition: attachment; filename="liquidacion-<os>-<periodo>.<ext>"`.
+  - CSV: UTF-8 con BOM, separador `,`, decimal `.`, quoting y CRLF de RFC 4180. JSON: cabecera (`obra_social`, `periodo`, `estado`, `total`, `total_reconocido`) + lista de `detalles`.
+  - Una fila por turno con `periodo`, `obra_social`, `estado`, `estado_arancel`, `turno_id`, `fecha_turno`, `prestacion`, `monto_reclamado`, `monto_reconocido` y `debito_motivo`; nunca incluye DNI, teléfono ni otros datos del paciente. Un formato distinto de `csv|json` responde `422` y no genera archivo.
+  - v1 no incluye presentación electrónica ni envío del archivo a la obra social.
+
 ## Nota CI
 
 `.github/workflows/ci.yml` corre backend (pytest contra Postgres/Redis de
@@ -370,7 +402,8 @@ secreto real vive en el repo.
 - [x] C-10 `presupuestos-planes` (`openspec/changes/archive/2026-11-01-c-10-presupuestos-planes/`).
 - [x] C-11 `caja-senas` (implementado en `openspec/changes/c-11-caja-senas/`): modelos + migración `010`, casos de uso de señas/caja, endpoints `/api/senas*` y `/api/caja/*`.
 - [x] C-12 `mercadopago-webhooks` (implementado en `openspec/changes/c-12-mercadopago-webhooks/`): modelo `CobroMP` + migración `011`, preferencias MP, webhook firmado e idempotente, conciliación y endpoints `/api/pagos/mercadopago/*`.
-- [ ] Próximos (Fase 4 / Fase 5): C-13 `obras-sociales-liquidacion`.
+- [x] C-13 `obras-sociales-liquidacion` (implementado en `openspec/changes/c-13-obras-sociales-liquidacion/`): cobertura compartida + migración `012`, liquidación por OS/período con débitos y estados `borrador`/`presentada`/`pagada`/`con_debitos`/`anulada`, endpoints `/api/os/cobertura` y `/api/liquidaciones*` con exportación CSV/JSON.
+- [ ] Próximos (Fase 5 / Fase 6): C-14 `auditoria-exportacion`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.
