@@ -234,3 +234,131 @@ async def test_autogestion_reprogramar_y_cancelar_por_token(
     )
     assert resp_canc.status_code == 200
     assert resp_canc.json()["estado"] == "cancelado"
+
+
+async def test_slots_publicos_sin_filtro_de_profesional_ni_sillon(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+) -> None:
+    """El portal público sólo manda prestación y fecha: el backend arma el producto.
+
+    Antes exigía profesional y sillón, por lo que el frontend (que no los manda en
+    el primer paso) recibía siempre `slots_disponibles` vacío.
+    """
+    odonto, sillon, prest_sin_sena, _ = await _preparar_consultorio_publico(
+        session, tenant_a, crear_usuario
+    )
+    fecha_futura = (datetime.now(UTC) + timedelta(days=3)).date()
+
+    resp = await api.get(
+        f"/reservar/{tenant_a.slug}",
+        params={"prestacion_id": str(prest_sin_sena.id), "fecha": fecha_futura.isoformat()},
+    )
+    assert resp.status_code == 200, resp.text
+    slots = resp.json()["slots_disponibles"]
+    assert len(slots) > 0
+    for slot in slots:
+        assert slot["profesional_id"] == str(odonto.id)
+        assert slot["sillon_id"] == str(sillon.id)
+        assert slot["inicio"] < slot["fin"]
+
+
+async def test_pago_publico_de_sena_genera_preferencia_y_404_sin_sena(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+) -> None:
+    odonto, sillon, prest_sin_sena, prest_con_sena = await _preparar_consultorio_publico(
+        session, tenant_a, crear_usuario
+    )
+    inicio = (datetime.now(UTC) + timedelta(days=7)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+
+    resp_res = await api.post(
+        f"/reservar/{tenant_a.slug}",
+        json={
+            "nombre": "Lucia Ferreyra",
+            "dni": "35.111.222",
+            "telefono": "1160001111",
+            "prestacion_id": str(prest_con_sena.id),
+            "profesional_id": str(odonto.id),
+            "sillon_id": str(sillon.id),
+            "inicio": inicio.isoformat(),
+        },
+    )
+    assert resp_res.status_code == 201, resp_res.text
+    token = resp_res.json()["token_gestion"]
+
+    # La preferencia se arma con el monto de la seña persistida (R8: el paciente no manda montos).
+    resp_pago = await api.post(f"/mis-turnos/{token}/pago")
+    assert resp_pago.status_code == 200, resp_pago.text
+    preferencia = resp_pago.json()
+    assert preferencia["init_point"].startswith("https://")
+    assert preferencia["sandbox_init_point"].startswith("https://")
+    assert Decimal(str(preferencia["monto"])) == Decimal("30000.00")
+    assert preferencia["external_reference"]
+
+    # Un turno sin seña no tiene nada que cobrar -> 404.
+    resp_res_sin = await api.post(
+        f"/reservar/{tenant_a.slug}",
+        json={
+            "nombre": "Pedro Gomez",
+            "dni": "33.444.555",
+            "telefono": "1155556666",
+            "prestacion_id": str(prest_sin_sena.id),
+            "profesional_id": str(odonto.id),
+            "sillon_id": str(sillon.id),
+            "inicio": (inicio + timedelta(hours=2)).isoformat(),
+        },
+    )
+    assert resp_res_sin.status_code == 201, resp_res_sin.text
+    token_sin_sena = resp_res_sin.json()["token_gestion"]
+
+    resp_pago_sin = await api.post(f"/mis-turnos/{token_sin_sena}/pago")
+    assert resp_pago_sin.status_code == 404
+
+
+async def test_disponibilidad_para_reprogramar_por_token(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+) -> None:
+    odonto, sillon, prest_sin_sena, _ = await _preparar_consultorio_publico(
+        session, tenant_a, crear_usuario
+    )
+    inicio = (datetime.now(UTC) + timedelta(days=8)).replace(
+        hour=9, minute=0, second=0, microsecond=0
+    )
+
+    resp_res = await api.post(
+        f"/reservar/{tenant_a.slug}",
+        json={
+            "nombre": "Ana Ruiz",
+            "dni": "30.222.333",
+            "telefono": "1144443333",
+            "prestacion_id": str(prest_sin_sena.id),
+            "profesional_id": str(odonto.id),
+            "sillon_id": str(sillon.id),
+            "inicio": inicio.isoformat(),
+        },
+    )
+    assert resp_res.status_code == 201, resp_res.text
+    token = resp_res.json()["token_gestion"]
+
+    resp_disp = await api.get(
+        f"/mis-turnos/{token}/disponibilidad",
+        params={"fecha": inicio.date().isoformat()},
+    )
+    assert resp_disp.status_code == 200, resp_disp.text
+    slots = resp_disp.json()
+    assert isinstance(slots, list) and len(slots) > 0
+    for slot in slots:
+        assert slot["profesional_id"] == str(odonto.id)
+        assert slot["sillon_id"] == str(sillon.id)
+    # El horario ya reservado por este mismo turno no debe ofrecerse de nuevo.
+    assert inicio.isoformat() not in {slot["inicio"] for slot in slots}

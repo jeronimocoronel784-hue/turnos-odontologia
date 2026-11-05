@@ -91,6 +91,20 @@ async def obtener_sena(
     return sena
 
 
+async def obtener_sena_por_turno(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    turno_id: uuid.UUID,
+) -> Sena | None:
+    """Devuelve la seña atada al turno (una por turno) o `None` si no existe (RN-PA-02)."""
+    return (
+        await session.execute(
+            select(Sena).where(Sena.turno_id == turno_id, Sena.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
+
+
 async def _obtener_turno(
     session: AsyncSession,
     *,

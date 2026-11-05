@@ -24,6 +24,7 @@ from app.api.schemas_agenda import (
     ReservaPublicaCreate,
     ReservaPublicaRead,
 )
+from app.api.schemas_mercadopago import PreferenciaRead
 from app.application.agenda import (
     HORA_APERTURA_DEFAULT,
     HORA_CIERRE_DEFAULT,
@@ -33,6 +34,8 @@ from app.application.agenda import (
     crear_turno,
     reprogramar_turno,
 )
+from app.application.caja import obtener_sena_por_turno
+from app.application.mercadopago import crear_preferencia_para_sena
 from app.application.pacientes import get_or_create_paciente
 from app.domain.prestacion import Prestacion
 from app.domain.sillon import Sillon
@@ -44,8 +47,13 @@ from app.infrastructure.security.tokens_publicos import (
     resolver_token_gestion_recurso,
 )
 from app.shared.exceptions import NoEncontrado
+from app.shared.settings import Settings
 
 router = APIRouter(tags=["reserva-publica"])
+
+# Tope de franjas devueltas al paciente: evita payloads enormes cuando hay varios
+# profesionales y sillones (el cálculo sin filtros es un producto N x M).
+LIMITE_SLOTS_PUBLICOS = 60
 
 
 async def _obtener_tenant_por_slug(session: AsyncSession, slug: str) -> Tenant:
@@ -156,21 +164,40 @@ async def disponibilidad_publica_endpoint(
     )
 
     slots_disponibles: list[dict[str, str]] = []
-    if prestacion_id and profesional_id and sillon_id:
+    if prestacion_id:
         prest_sel = next((p for p in prestaciones if p.id == prestacion_id), None)
         if prest_sel is not None:
             dia_base = fecha or (datetime.now(UTC) + timedelta(days=1)).date()
             desde = datetime.combine(dia_base, time(HORA_APERTURA_DEFAULT, 0), tzinfo=UTC)
             hasta = datetime.combine(dia_base, time(HORA_CIERRE_DEFAULT, 0), tzinfo=UTC)
-            slots_disponibles = await calcular_slots_disponibles(
-                session,
-                tenant_id=tenant.id,
-                profesional_id=profesional_id,
-                sillon_id=sillon_id,
-                duracion_min=prest_sel.duracion_min,
-                desde=desde,
-                hasta=hasta,
+            # El paciente puede filtrar por profesional y/o sillón; sin filtro se calcula
+            # el producto profesional x sillón para no esconder disponibilidad real.
+            profesionales_objetivo = (
+                [p for p in profesionales if p.id == profesional_id]
+                if profesional_id
+                else list(profesionales)
             )
+            sillones_objetivo = (
+                [s for s in sillones if s.id == sillon_id] if sillon_id else list(sillones)
+            )
+            vistos: set[tuple[str, str, str]] = set()
+            for profesional in profesionales_objetivo:
+                for sillon in sillones_objetivo:
+                    for slot in await calcular_slots_disponibles(
+                        session,
+                        tenant_id=tenant.id,
+                        profesional_id=profesional.id,
+                        sillon_id=sillon.id,
+                        duracion_min=prest_sel.duracion_min,
+                        desde=desde,
+                        hasta=hasta,
+                    ):
+                        clave = (slot["inicio"], slot["profesional_id"], slot["sillon_id"])
+                        if clave not in vistos:
+                            vistos.add(clave)
+                            slots_disponibles.append(slot)
+            slots_disponibles.sort(key=lambda s: (s["inicio"], s["profesional_id"]))
+            slots_disponibles = slots_disponibles[:LIMITE_SLOTS_PUBLICOS]
 
     return {
         "tenant_slug": tenant.slug,
@@ -262,6 +289,63 @@ async def confirmar_mi_turno_endpoint(
     )
     await session.commit()
     return await _armar_respuesta_publica(session, turno)
+
+
+@router.get("/mis-turnos/{token}/disponibilidad")
+async def disponibilidad_mi_turno_endpoint(
+    token: str,
+    session: Annotated[AsyncSession, Depends(deps.sesion_db)],
+    fecha: Annotated[date | None, Query()] = None,
+) -> list[dict[str, str]]:
+    """Franjas libres para reprogramar el turno propio con el mismo profesional y sillón.
+
+    Se resuelve por token (RN-SE-03): el paciente no necesita conocer el slug del
+    consultorio y sólo ve disponibilidad del recurso que ya tiene reservado.
+    """
+    turno, tenant = await _resolver_turno_por_token(session, token)
+    prestacion = await session.get(Prestacion, turno.prestacion_id)
+    if prestacion is None:
+        raise NoEncontrado("Che, no encontramos la prestación de este turno.")
+
+    dia_base = fecha or (datetime.now(UTC) + timedelta(days=1)).date()
+    desde = datetime.combine(dia_base, time(HORA_APERTURA_DEFAULT, 0), tzinfo=UTC)
+    hasta = datetime.combine(dia_base, time(HORA_CIERRE_DEFAULT, 0), tzinfo=UTC)
+    slots = await calcular_slots_disponibles(
+        session,
+        tenant_id=tenant.id,
+        profesional_id=turno.profesional_id,
+        sillon_id=turno.sillon_id,
+        duracion_min=prestacion.duracion_min,
+        desde=desde,
+        hasta=hasta,
+    )
+    await session.commit()
+    return slots
+
+
+@router.post("/mis-turnos/{token}/pago", response_model=PreferenciaRead)
+async def generar_pago_mi_turno_endpoint(
+    token: str,
+    session: Annotated[AsyncSession, Depends(deps.sesion_db)],
+    settings: Annotated[Settings, Depends(deps.settings_cacheados)],
+) -> PreferenciaRead:
+    """Genera la preferencia de Mercado Pago de la seña pendiente del turno (RN-PA-02).
+
+    El monto y el vencimiento salen siempre de la seña persistida: el paciente nunca
+    envía montos (R8). Un turno sin seña o con la seña ya resuelta responde 404/409.
+    """
+    turno, tenant = await _resolver_turno_por_token(session, token)
+    sena = await obtener_sena_por_turno(session, tenant_id=tenant.id, turno_id=turno.id)
+    if sena is None:
+        raise NoEncontrado("Che, este turno no tiene una seña pendiente de pago.")
+    preferencia = await crear_preferencia_para_sena(
+        session,
+        tenant_id=tenant.id,
+        sena_id=sena.id,
+        settings=settings,
+    )
+    await session.commit()
+    return preferencia
 
 
 @router.post("/mis-turnos/{token}/cancelar", response_model=ReservaPublicaRead)
