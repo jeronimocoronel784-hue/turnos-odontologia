@@ -31,7 +31,11 @@ async def run() -> None:
     import redis.asyncio as redis_async
 
     settings = get_settings()
-    cliente = redis_async.from_url(settings.redis_url, socket_connect_timeout=5)
+    cliente = redis_async.from_url(
+        settings.redis_url,
+        socket_connect_timeout=5,
+        socket_timeout=10,
+    )
     try:
         await cliente.ping()
     except Exception:
@@ -39,7 +43,10 @@ async def run() -> None:
         raise
     logger.info("Worker escuchando cola turnos:jobs.")
     while True:
-        item = await cliente.brpop("turnos:jobs", timeout=5)
+        try:
+            item = await cliente.brpop("turnos:jobs", timeout=2)
+        except (TimeoutError, redis_async.TimeoutError):
+            continue
         if item is None:
             continue
         try:
