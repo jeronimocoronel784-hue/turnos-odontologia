@@ -14,9 +14,14 @@ FROM nginx:1.27.3-alpine AS runtime
 RUN adduser -D -u 10001 appuser
 COPY --from=builder /srv/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-RUN touch /var/run/nginx.pid && chown -R appuser /var/run/nginx.pid /var/cache/nginx /usr/share/nginx/html
+# nginx no-root: el pid va a /tmp porque /var/run no es escribible por appuser
+# (el unlink del pid fallaba con Permission denied al reiniciar).
+RUN sed -i 's|pid[[:space:]]*/var/run/nginx.pid;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
+    && grep -q 'pid /tmp/nginx.pid;' /etc/nginx/nginx.conf \
+    && chown -R appuser /var/cache/nginx /usr/share/nginx/html
 USER appuser
 EXPOSE 80
+# 127.0.0.1 explícito: "localhost" puede resolver a IPv6 y nginx escucha IPv4.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -q -O /dev/null http://localhost:80/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:80/ || exit 1
 CMD ["nginx", "-g", "daemon off;"]
