@@ -6,7 +6,7 @@ Gestionar las señas vinculadas a los turnos (`pendiente → cobrada → aplicad
 ## Requirements
 
 ### Requirement: Ciclo de vida de la seña vinculada al turno y política de cancelación
-El sistema MUST generar una `Sena` en estado `pendiente` cuando se reserva un turno cuya prestación tiene `requiere_sena = True` (`RN-PA-02`). Un turno con seña exigible impaga MUST NOT pasar a `confirmado` (`RN-PA-01`). Al cobrarse la seña, MUST pasar a `cobrada`, habilitar la confirmación del turno y registrar su `MovimientoCaja` (`RN-PA-05`). Ante cancelación dentro de término, la seña cobrada MUST pasar a `devuelta`; fuera de término o por inasistencia (`ausente`), MUST retenerse pasando a `aplicada` (`RN-PA-04`).
+El sistema MUST generar una `Sena` en estado `pendiente` al reservar un turno con prestación `requiere_sena = True` (`RN-PA-02`). Un turno con seña exigible impaga MUST NOT pasar a `confirmado` (`RN-PA-01`). Al cobrarse, la seña MUST pasar a `cobrada`, habilitar la confirmación y registrar su `MovimientoCaja` (`RN-PA-05`). Ante cancelación dentro de término MUST pasar a `devuelta`; fuera de término o por inasistencia (`ausente`), MUST retenerse en `aplicada` (`RN-PA-04`).
 
 #### Scenario: Cobro de seña habilita confirmar turno y cancelación en/fuera de término aplica RN-PA-04
 - **GIVEN** un turno reservado para una prestación con `requiere_sena = True` y `monto_sena = 10000.00`
