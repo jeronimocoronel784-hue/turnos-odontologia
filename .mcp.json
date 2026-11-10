@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "turnos-odontologia": {
+      "command": "python",
+      "args": [
+        "-u",
+        "mcp_server.py"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
