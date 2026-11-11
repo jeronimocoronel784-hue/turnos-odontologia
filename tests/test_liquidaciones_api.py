@@ -22,7 +22,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.application.liquidaciones import TIENE_TURNOS_SIN_COBERTURA
 from app.domain.cobertura_os import CoberturaOS
 from app.domain.liquidacion_os import LiquidacionOS
 from app.domain.paciente import Paciente
@@ -773,9 +772,6 @@ async def test_el_alta_persiste_los_turnos_sin_cobertura_al_releer(
     autorizacion: Callable[[str], dict[str, str]],
 ) -> None:
     """E.9/D12: el alta y la lectura devuelven el mismo `turnos_sin_cobertura`."""
-    if not TIENE_TURNOS_SIN_COBERTURA:
-        pytest.skip("la columna `turnos_sin_cobertura` la agrega la migración correctiva 013")
-
     recepcion = await crear_usuario(
         tenant=tenant_a, email="recepcion-sin-cobertura@consultorio.test", rol=RolUsuario.RECEPCION
     )

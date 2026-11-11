@@ -76,10 +76,6 @@ ADVERTENCIA_TURNOS_YA_RECLAMADOS = (
 )
 MENSAJE_SIN_TURNOS_NUEVOS = "no hay turnos nuevos para liquidar en ese período"
 
-# La columna `turnos_sin_cobertura` la agrega la migración correctiva `013` (D12): mientras
-# el modelo no la exponga, el conteo vive sólo en la respuesta del alta.
-TIENE_TURNOS_SIN_COBERTURA = "turnos_sin_cobertura" in LiquidacionOS.__table__.columns
-
 
 def _agregar_advertencia(advertencias: list[str], mensaje: str | None) -> None:
     """Agrega una advertencia sin repetirla, conservando el orden de aparición."""
@@ -349,10 +345,8 @@ def _armar_read_desde_datos(
         if any(fila.arancel_vencido for fila in filas):
             _agregar_advertencia(advertencias, ADVERTENCIA_ARANCEL_VENCIDO)
 
-    # D12: el conteo de turnos sin cobertura vive en la cabecera; si el modelo todavía no
-    # expone la columna (migración `013` pendiente), se usa el valor del alta.
-    persistido = getattr(liquidacion, "turnos_sin_cobertura", None)
-    sin_cobertura = int(persistido) if persistido is not None else turnos_sin_cobertura
+    # D12: el conteo de turnos sin cobertura vive en la cabecera (migración `013`).
+    sin_cobertura = int(liquidacion.turnos_sin_cobertura)
 
     return LiquidacionOSRead(
         id=liquidacion.id,
@@ -628,8 +622,7 @@ async def generar_borrador(
         )
         for turno, resolucion in incluidos
     ]
-    if TIENE_TURNOS_SIN_COBERTURA:
-        liquidacion.turnos_sin_cobertura = sin_cobertura
+    liquidacion.turnos_sin_cobertura = sin_cobertura
 
     # D11: el alta va dentro de un SAVEPOINT para que una carrera contra el índice único
     # se traduzca a 409 sin abortar la transacción del request (nunca `session.rollback()`).

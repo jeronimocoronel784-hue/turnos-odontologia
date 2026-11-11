@@ -33,21 +33,30 @@ RUTAS_CATALOGO_ESPERADAS = [
 ]
 
 
+def _rutas_de_la_app() -> set[tuple[str, str]]:
+    """Rutas reales de la app como pares `(método, path)`.
+
+    La fuente estable es el schema OpenAPI: desde FastAPI 0.162 `app.routes` ya no
+    aplana los routers incluidos (los mete como `_IncludedRouter`), así que
+    introspeccionar `app.routes` sólo devuelve las rutas de documentación.
+    """
+    rutas: set[tuple[str, str]] = set()
+    for ruta, operaciones in app.openapi().get("paths", {}).items():
+        for metodo in operaciones:
+            metodo = metodo.upper()
+            if metodo in {"GET", "POST", "PATCH", "DELETE"}:
+                rutas.add((metodo, ruta))
+    return rutas
+
+
 def test_rutas_catalogo_existen_en_la_app() -> None:
-    rutas_reales: set[tuple[str, str]] = set()
-    for route in app.routes:
-        path = getattr(route, "path", None)
-        methods: set[str] = set(getattr(route, "methods", set()))
-        if path and methods:
-            for m in methods:
-                if m in {"GET", "POST", "PATCH", "DELETE"}:
-                    rutas_reales.add((m, path))
+    rutas_reales = _rutas_de_la_app()
 
     for metodo, ruta in RUTAS_CATALOGO_ESPERADAS:
         assert (
             metodo,
             ruta,
-        ) in rutas_reales, f"Falta ruta {metodo} {ruta} en app.routes"
+        ) in rutas_reales, f"Falta ruta {metodo} {ruta} en la app"
 
 
 def test_readme_documenta_catalogo_y_politicas() -> None:

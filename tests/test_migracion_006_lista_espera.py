@@ -141,7 +141,14 @@ async def test_constraints_lista_espera_prioridad_y_idempotency_key(
         await session.flush()
     await session.rollback()
 
-    # Reinsertar base tras rollback
+    # Reinsertar base tras rollback.
+    # El `rollback()` de arriba también deshizo el INSERT del `tenant`: la fixture
+    # `tenant_a` sólo hace flush (nunca commit), así que tras el rollback el
+    # tenant ya no existe y hay que reinsertarlo. El orden importa: sin
+    # `relationship()` el unit-of-work no ordena los INSERTs, y `paciente` (p)
+    # se insertaría antes que `tenant` (t) violando `paciente_tenant_id_fkey`.
+    session.add(tenant_a)
+    await session.flush()
     session.add(
         Paciente(
             id=pac_id,

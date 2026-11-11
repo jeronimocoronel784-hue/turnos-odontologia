@@ -115,7 +115,9 @@ class LiquidacionOS(Base, TenantMixin, AuditMixin):
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     total_reconocido: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     # D12: el conteo de turnos sin cobertura del alta queda persistido (no se pierde al releer).
-    turnos_sin_cobertura: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    turnos_sin_cobertura: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
     presentada_por: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), ForeignKey("usuario.id", ondelete="RESTRICT"), nullable=True
@@ -198,7 +200,9 @@ class LiquidacionOSDetalle(Base, TenantMixin, AuditMixin):
     vigente: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # D9/D12: el reclamo sigue vigente mientras la liquidación no esté `anulada`; el pago
     # no lo libera (sólo la anulación, que lo pasa a `false`).
-    reclamado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    reclamado: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
 
     __table_args__ = (
         UniqueConstraint("liquidacion_id", "turno_id", name="uq_liquidacion_detalle_turno"),

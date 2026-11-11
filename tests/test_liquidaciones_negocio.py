@@ -28,7 +28,6 @@ from app.api.schemas_liquidaciones import (
     ResultadoOSInput,
 )
 from app.application.liquidaciones import (
-    TIENE_TURNOS_SIN_COBERTURA,
     generar_borrador,
     listar_liquidaciones,
     obtener_liquidacion,
@@ -829,8 +828,6 @@ async def test_el_alta_persiste_la_cabecera_con_turnos_sin_cobertura(
     session: AsyncSession, tenant_a: Tenant
 ) -> None:
     """D12/E.9: el conteo de turnos sin cobertura queda persistido en la cabecera."""
-    if not TIENE_TURNOS_SIN_COBERTURA:
-        pytest.skip("la columna `turnos_sin_cobertura` la agrega la migración correctiva 013")
 
     ctx = await _seed_consultorio(session, tenant_a)
     await _crear_turno(session, tenant_a, ctx)
