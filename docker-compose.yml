@@ -1,4 +1,4 @@
-# Stack local: api + postgres 15 + redis 7 + worker (+ mailhog dev).
+# Stack local: api + postgres 15 + redis 7 + worker + frontend PWA (+ mailhog dev).
 # Un comando: `docker compose up --build` (con el .env configurado desde .env.example).
 # La API corre con el rol app restringido (D4); migraciones/seed usan el owner.
 
@@ -40,13 +40,25 @@ services:
       DATABASE_URL_OWNER: postgresql+asyncpg://${POSTGRES_USER:-turnos_owner}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-turnos}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
-      FRONT_URL: http://localhost:5173
+      FRONT_URL: http://localhost:8080
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # PWA servida por nginx no-root (imagen ya existente, sin node/npm en el host).
+  # El healthcheck lo hereda del Dockerfile.frontend (wget a 127.0.0.1:80).
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
         condition: service_healthy
 
   worker:

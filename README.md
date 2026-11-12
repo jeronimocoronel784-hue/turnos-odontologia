@@ -104,6 +104,126 @@ curl http://localhost:8000/api/health
 - `503` con `detalle` en rioplatense indicando qué servicio está caído
   (sin stack traces ni datos sensibles).
 
+## Servidor MCP
+
+Servidor propio en [Model Context Protocol](https://modelcontextprotocol.io)
+(`mcp_server.py`, transporte **stdio**) que le da a un cliente MCP (Claude Code,
+OpenCode, MCP Inspector, etc.) acceso de **solo lectura** a dos consultas del
+consultorio, pensado para desarrollo y demos con datos de seed:
+
+| Tool | Qué hace |
+|---|---|
+| `consultar_prestaciones` | Devuelve en JSON el catálogo de prestaciones activas (nombre, duración, precio particular, seña, invasiva). |
+| `buscar_paciente_por_dni` | Busca un paciente por DNI (ignora puntos y guiones) y devuelve su ficha de contacto; si no existe responde `{"encontrado": false, ...}`. |
+
+Ambas herramientas solo ejecutan `SELECT` y devuelven JSON: los errores llegan
+como `{"error": "..."}` (sin stack traces ni datos sensibles).
+
+### Requisitos
+
+| Requisito | Detalle |
+|---|---|
+| Python | 3.12+ (probado con 3.13) |
+| SDK `mcp` 2.x | `pip install "mcp>=2,<3"` — **no está en `requirements.txt`**; el código importa `mcp.server.mcpserver.MCPServer` (`mcp_server.py:10`) |
+| Dependencias del repo | `pip install -r requirements.txt` (trae `asyncpg`; `python-dotenv` llega con `pydantic-settings`) |
+| PostgreSQL | Con el stack arriba (`docker compose up -d db`) o un Postgres local en `localhost:5432/turnos` |
+
+### Configuración
+
+El repo ya trae `.mcp.json` en la raíz (versionado, **sin secretos**):
+
+```json
+{
+  "mcpServers": {
+    "turnos-odontologia": {
+      "command": "python",
+      "args": ["-u", "mcp_server.py"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
+```
+
+Para reproducirlo en otro cliente MCP (transporte stdio), usá ese mismo bloque
+`command`/`args`/`env` con el **directorio de trabajo = raíz del repo**. El `-u`
+más las dos variables de entorno no son secretos: desactivan el buffer de stdout
+y fuerzan UTF-8 para que el cliente no se cuelge esperando mensajes en Windows
+(`mcp_server.py:13-16`).
+
+#### Variables de entorno
+
+| Variable | Default | Para qué sirve |
+|---|---|---|
+| `DATABASE_URL_MCP` | — | DSN preferido de PostgreSQL para las tools. Es **opcional** y no figura en `.env.example`; si querés fijarlo, agregalo a tu `.env` local (nunca commiteado, R10). |
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/turnos` | Fallback si no hay `DATABASE_URL_MCP`. Funciona también el `.env` del compose: el server adapta `postgresql+asyncpg://` → `postgresql://` y el host `@db:` → `@localhost:` (`mcp_server.py:30-32`). |
+
+Además, `load_dotenv()` (`mcp_server.py:18`) lee el `.env` de la raíz si existe.
+Los valores reales de DSN viven solo en tu `.env`: este repo y el `.mcp.json`
+nunca llevan credenciales (R10).
+
+### Verificación de conexión
+
+1. Chequeo rápido de dependencias:
+
+   ```powershell
+   python -c "from mcp.server.mcpserver import MCPServer; print('mcp ok')"
+   ```
+
+2. Listar las tools por stdio (MCP Inspector en modo CLI, sin abrir UI):
+
+   ```powershell
+   npx -y @modelcontextprotocol/inspector --cli python -u mcp_server.py --method tools/list
+   ```
+
+   Debe imprimir las dos tools: `consultar_prestaciones` y `buscar_paciente_por_dni`.
+
+3. Ejecutar una tool:
+
+   ```powershell
+   npx -y @modelcontextprotocol/inspector --cli python -u mcp_server.py --method tools/call --tool-name consultar_prestaciones
+   ```
+
+   - Con Postgres arriba: JSON con el catálogo seed (`Limpieza`, `Consulta`,
+     `Arreglo`, `Endodoncia`, `Extracción`).
+   - Con la DB caída: `{"error": "Error al consultar prestaciones: ..."}` — la
+     tool responde igual y la sesión MCP no se rompe.
+
+   Para la UI interactiva (probar las dos tools a mano): `npx -y
+   @modelcontextprotocol/inspector python -u mcp_server.py`.
+
+### Troubleshooting
+
+- **`ModuleNotFoundError: No module named 'mcp'` (o el cliente marca el server
+  como desconectado al instante)**: falta el SDK del protocolo, que **no está en
+  `requirements.txt`**. Solución: `pip install "mcp>=2,<3"` y reiniciar el
+  cliente MCP. Es genuino: sin el SDK el import de `mcp_server.py:10` truena
+  antes de abrir el canal stdio, por eso el cliente reporta falla de conexión
+  en lugar de un error visible.
+- **La tool devuelve `{"error": "... ConnectionDoesNotExistError ..."}` (u
+  `OSError`)**: PostgreSQL no responde (Docker apagado o servicio `db` caído).
+  Levantá el stack (`docker compose up -d db`) y reintentá. `get_connection()`
+  usa `asyncpg.connect(..., timeout=5.0)` y el `except` devuelve el error como
+  JSON (`mcp_server.py:33` y `55-59`), así que el cliente MCP sigue vivo y el
+  motivo queda claro en la respuesta.
+- **El cliente se cuelga sin listar tools en Windows**: buffering/encoding de
+  stdout. Ya está mitigado con `python -u` + `PYTHONUNBUFFERED=1` +
+  `PYTHONIOENCODING=utf-8` en `.mcp.json` y con `stdout.reconfigure(...)`
+  (`mcp_server.py:13-16`); si copiás la config a otro cliente, no saques esas
+  variables.
+
+### Límites (R9, R13)
+
+- **Solo lectura**: ninguna tool escribe, actualiza ni borra; no reemplaza a la
+  API REST autenticada ni a sus reglas de tenant/RBAC.
+- **Datos de desarrollo**: el seed es 100% ficticio. NUNCA usarla contra datos
+  reales de pacientes ni pegar sus respuestas en logs, errores o prompts
+  (R9, R13).
+- **Sin credenciales propias**: el DSN sale de tu `.env` local; `.mcp.json` no
+  lleva secretos y `.env` nunca se commitea (R10).
+
 ## Autenticación (C-03)
 
 Todo endpoint interno exige `Authorization: Bearer <access_token>`. El access
@@ -272,7 +392,7 @@ openspec/             Specs y changes de OpenSpec (fuente del CLI)
 .opencode/            Comandos y configuración de OpenCode
 CHANGES.md            Índice operativo de implementación (17 changes, 7 fases)
 AGENTS.md / CLAUDE.md Reglas del proyecto para agentes
-pytest.ini / .env.example / .github/workflows/ci.yml
+pytest.ini / .env.example / .mcp.json / mcp_server.py / .github/workflows/ci.yml
 ```
 
 > **Nota de equivalencia:** layout vigente `src/backend/` + `src/frontend/` (tras
@@ -406,6 +526,7 @@ secreto real vive en el repo.
 - [x] C-11 `caja-senas` (implementado en `openspec/changes/c-11-caja-senas/`): modelos + migración `010`, casos de uso de señas/caja, endpoints `/api/senas*` y `/api/caja/*`.
 - [x] C-12 `mercadopago-webhooks` (implementado en `openspec/changes/c-12-mercadopago-webhooks/`): modelo `CobroMP` + migración `011`, preferencias MP, webhook firmado e idempotente, conciliación y endpoints `/api/pagos/mercadopago/*`.
 - [x] C-13 `obras-sociales-liquidacion` (implementado en `openspec/changes/c-13-obras-sociales-liquidacion/`): cobertura compartida + migraciones `012` y `013`, liquidación por OS/período con débitos y estados `borrador`/`presentada`/`pagada`/`con_debitos`/`anulada`, reclamo único por obra social y período, endpoints `/api/os/cobertura` y `/api/liquidaciones*` con exportación CSV/JSON.
+- [x] C-15 `reserva-publica-pwa` (`openspec/changes/archive/2026-11-12-c-15-reserva-publica-pwa/`): PWA pública de reserva online y autogestión de turnos por token opaco (React + TypeScript + Vite PWA): catálogo y slots en `/reservar/:slug`, formulario sin login con validación DNI/teléfono, seña guiada a Mercado Pago con montos del servidor, `/mis-turnos/:token`, firma de consentimiento en `/firmar/:token` y shell offline con service worker.
 - [ ] Próximos (Fase 5 / Fase 6): C-14 `auditoria-exportacion`.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;

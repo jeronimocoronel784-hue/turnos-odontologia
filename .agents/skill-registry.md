@@ -25,6 +25,7 @@ Project: turnos-odontologia — SaaS multi-tenant odontológico (FastAPI + SQLAl
 | EMR/EHR features: encounter workflows, prescriptions, clinical data entry UI (plantilla para HC + odontograma FDI C-05) | healthcare-emr-patterns | .agents/skills/healthcare-emr-patterns/SKILL.md |
 | PHI handling, covered entities, BAAs, minimum-necessary, auditabilidad (base para Ley 25.326 + HCE AR) | hipaa-compliance | .agents/skills/hipaa-compliance/SKILL.md |
 | Optimized multi-stage Dockerfiles, any language/framework (foundation C-01) | multi-stage-dockerfile | .agents/skills/multi-stage-dockerfile/SKILL.md |
+| Revisar artefactos SDD de un change (proposal/design/specs/tasks) contra la knowledge-base antes de aprobar: reglas RN ambiguas/ausentes/contradictorias y casos de borde faltantes (gate previo a /opsx:propose y /opsx:apply) | sdd-change-review | .agents/skills/sdd-change-review/SKILL.md |
 
 ## Compact Rules
 
@@ -146,6 +147,14 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 - Seguridad: nunca root (`USER` no-root); sin build-tools/secretos en imagen final; permisos restrictivos; escanea vulnerabilidades
 - Prod: `NODE_ENV=production`, `HEALTHCHECK` por tipo de app, build-args para config entre entornos, aprovecha caché ordenando de menos a más cambiante
 
+### sdd-change-review (gate previo a aprobar un change — KB vs artefactos SDD)
+- Activa antes de aprobar proposal/design/specs/tasks de `openspec/changes/<name>/`: cruce sistemático contra `knowledge-base/05_reglas_de_negocio.md` + R1–R13 de AGENTS.md
+- Matriz por RN con estados CUBIERTA/PARCIAL/AUSENTE/CONTRADICTORIA/AMBIGUA; contradicciones se resuelven por precedencia RN-GL-01 (SE > CL > PA > AG > CO)
+- Escenarios: mínimo 2 casos por comportamiento (R11), rechazos con mensaje rioplatense (RN-GL-02), idempotencia de eventos repetidos (R8), tenant del token (R4), máquina de estados RN-AG-07
+- Severidad según gobernanza: CRITICAL = auth/salud/pagos/auditoría (bloquea aprobación → RECHAZAR); sin evidencia `archivo:línea` + código RN-*/R* no hay hallazgo
+- Temas sin KB → "Consultas al PO" (PO-* de `10_preguntas_abiertas.md`), nunca inventar reglas; solo reporta, los fixes los aplica `/opsx:update-change`
+- Sin PHI, credenciales ni `.env` en el reporte (R9, R13); texto en español rioplatense
+
 ## Change → Skills (delegación rápida)
 
 | Change | Skills a inyectar |
@@ -160,6 +169,7 @@ Pre-digested rules per skill. Delegators copy matching blocks into sub-agent pro
 | PWA paciente / pantallas recep. | vercel-react-best-practices, frontend-design, tdd |
 | Auditoría/trazabilidad | hipaa-compliance, supabase-postgres-best-practices (audit trail), code-review |
 | Cualquier branch/PR | code-review (dos ejes), tdd (rojo-verde fuera del loop de refactor) |
+| Gate previo a aprobar un change (antes de /opsx:propose y /opsx:apply) | sdd-change-review (KB vs artefactos), tdd (para los escenarios que defina) |
 
 ## Project Conventions
 

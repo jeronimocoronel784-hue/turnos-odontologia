@@ -46,8 +46,24 @@ Fuente de verdad del dominio. Leer antes de proponer o implementar:
 | Infra | Docker + foundation | `multi-stage-dockerfile`, `python-fastapi-development` |
 | Diagnóstico | WhatsApp en producción | `observe-whatsapp` |
 | Calidad | Reviews HIGH/CRITICAL | `code-review` |
+| Revisor SDD | Gate de artefactos del change vs knowledge-base antes de aprobar | `sdd-change-review` |
 
 > Los compact rules de cada skill los resuelve el orquestador desde `.agents/skill-registry.md` (versionado en el repo, junto a las skills en `.agents/skills/`).
+
+### Skill propia: `sdd-change-review` (gate de artefactos SDD vs KB)
+
+- **Cuándo usarla**: antes de aprobar cualquier proposal de `openspec/changes/<name>/`, como gate previo a `/opsx:propose`, `/opsx:apply` o el arranque de la implementación; y siempre que se pida "revisar contra la KB", "chequear reglas de negocio", "validar el change" o "faltan casos borde".
+- **Qué necesita**: los artefactos del change (`proposal.md`, `design.md`, `specs/<capability>/spec.md`, `tasks.md`) + `knowledge-base/` (principal `05_reglas_de_negocio.md`, con `03`/`04`/`06`/`07` de contexto y `09`/`10` para decisiones y preguntas abiertas) + sección `Leer antes` del change en `CHANGES.md` + R1–R13 de este archivo. Sin PHI, credenciales ni `.env` (R9, R13).
+- **Cómo revisar el resultado**: debe traer matriz de cobertura de **todas** las RN de los dominios involucrados (estados CUBIERTA/PARCIAL/AUSENTE/CONTRADICTORIA/AMBIGUA), hallazgos con evidencia `archivo:línea` + código `RN-*`/`R*`, casos de borde medidos contra R11 (mínimo 2 por comportamiento), veredicto (APROBAR / APROBAR CON CAMBIOS / RECHAZAR) coherente con la severidad (CRITICAL ⇒ RECHAZAR), y sin reglas inventadas (los temas ausentes de la KB van a "Consultas al PO"). Solo reporta: los fixes los aplica `/opsx:update-change`.
+
+### Servidor MCP: `turnos-odontologia`
+
+- **Propósito**: servidor MCP propio (`mcp_server.py`, transporte stdio) que expone consultas de **solo lectura** sobre la base del consultorio a los agentes, sin pasar por la API REST. NO es una skill: es un servidor de herramientas anidado acá por separado.
+- **Capacidades (2 tools)**: `consultar_prestaciones` (catálogo de prestaciones activas) y `buscar_paciente_por_dni` (ficha de contacto por DNI, ignorando puntos y guiones; `{"encontrado": false, ...}` si no existe). Devuelven JSON; los errores llegan como `{"error": ...}`, nunca stack traces.
+- **Cuándo usarla**: cuando haya que ver el catálogo de servicios o localizar un paciente ficticio por DNI desde el chat (verificación de flujos, demos con datos de seed). Para todo lo demás, la API REST autenticada manda.
+- **Límites de acceso (R9, R13)**: solo `SELECT` (sin escritura ni borrado) y datos 100% ficticios del seed — NUNCA invocarla contra datos reales de pacientes ni pegar sus respuestas en logs, errores o prompts con PHI.
+- **Cómo está configurado**: `.mcp.json` en la raíz (command `python -u mcp_server.py` + `PYTHONUNBUFFERED=1` / `PYTHONIOENCODING=utf-8`, sin secretos) junto a `mcp_server.py`. Requiere `pip install "mcp>=2,<3"` (el SDK `mcp` **no** está en `requirements.txt`), `asyncpg` y `python-dotenv` (de `requirements.txt`), y Postgres accesible: `DATABASE_URL_MCP`, si no `DATABASE_URL`, si no el default `postgresql://postgres:postgres@localhost:5432/turnos`.
+- **Cómo verificar la conexión**: `python -c "from mcp.server.mcpserver import MCPServer; print('ok')"` y luego `npx -y @modelcontextprotocol/inspector --cli python -u mcp_server.py --method tools/list` debe listar las 2 tools; con la DB caída una tool responde `{"error": ...}` en vez de romper la sesión. Procedimiento completo en `README.md` → sección "Servidor MCP".
 
 ## Roadmap de Changes
 

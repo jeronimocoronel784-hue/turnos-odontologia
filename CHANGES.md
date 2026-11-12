@@ -35,6 +35,7 @@ C-01 foundation-setup
           │                 └── C-14 auditoria-exportacion (+ C-11)
           │                       └── C-17 frontend-caja-os-admin ← cierre + polish final
           ├── C-15 reserva-publica-pwa (+ C-09, C-12)
+          │     └── C-18 frontend-compose-demo ← demo con compose, tras C-15
           └── C-16 frontend-agenda-clinica (+ C-08, C-10)
 ```
 
@@ -409,7 +410,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > Backend antes que frontend acoplado: las 3 vistas esperan a sus endpoints. C-15/C-16 en paralelo; C-17 cierra con admin + polish visual final.
 
 ### [C-15] `reserva-publica-pwa`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado y archivado en `openspec/changes/archive/2026-11-12-c-15-reserva-publica-pwa/` (15/15 tareas; specs vigentes en `openspec/specs/reserva-publica-pwa/spec.md`) — PWA pública del paciente (React + TypeScript + Vite PWA) con reserva online sin login (`/reservar/:slug`), autogestión por token opaco (`/mis-turnos/:token`), flujo de seña con montos del servidor, firma de consentimiento (`/firmar/:token`) y shell offline (service worker sin datos clínicos en `localStorage`). Verificación de cierre: `npm run build` del frontend OK (`tsc --noEmit` + `vite build` + generación del SW) y suite de backend 553 passed / 7 skipped (sin Docker disponible para contenedor de DB, los tests corrieron local).
 - **Scope**: PWA pública del paciente (móvil-first) + shell offline
   - `features/reserva-publica`: prestaciones → profesionales → slots reales → formulario (nombre+DNI+teléfono+OS) → link/QR MP si exige seña → `token_gestion`
   - Páginas por token: `/mis-turnos/:token`, `/lista-espera/:token`, `/pagar/:token` (redirect MP), `/firmar/:token` (consentimiento)
@@ -459,5 +460,30 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
   - `knowledge-base/06_funcionalidades.md` §US-050 / US-051
   - `knowledge-base/07_flujos_principales.md` §Flujo 4 / Flujo 5
   - `knowledge-base/08_arquitectura_propuesta.md` §Estructura de directorios (frontend)
+
+---
+
+## FASE 7 — Demo compose (integración)
+
+> Después de C-15: sin pantallas nuevas, solo el cableado del frontend al stack para grabar el video del TP. Corre en paralelo con C-14/C-16; no está en el camino crítico.
+
+### [C-18] `frontend-compose-demo`
+- **Estado**: `[ ]` pendiente — artefactos propuestos en `openspec/changes/c-18-frontend-compose-demo/`
+- **Propósito**: mostrar "frontend y backend levantados con el flujo implementado": `docker-compose.yml` hoy no declara el servicio `frontend` (lo admite el README) y la imagen nginx no-root ya funcionando (`src/frontend/Dockerfile.frontend` + `nginx.conf`) queda sin cablear al stack ni con reverse proxy hacia la API.
+- **Scope**: servicio frontend en compose + proxy inverso `/api` + verificación end-to-end
+  - Servicio `frontend` en `docker-compose.yml` (build desde `src/frontend/Dockerfile.frontend`, healthcheck heredado, puerto `8080:80`, `depends_on: api` sano)
+  - `location /api/` en `src/frontend/nginx.conf` → `proxy_pass http://api:8000` en la red de compose (mismo origen, sin CORS; el fallback SPA `try_files` queda intacto)
+  - Utilería dev `python -m app.scripts.usuario_demo`: usuario demo con hash bcrypt tomando `DEMO_PASSWORD` del entorno (placeholder en `.env.example`), porque el Dueño del seed usa hash pbkdf2 que nunca autentica (`tests/test_seguridad_passwords.py`)
+  - Tests de integración `tests/test_demo_frontend.py` contra el stack real (R11, 2 casos por comportamiento): health `200` / login `401`, reserva `200` / slug inexistente `404`, ruta SPA `200` `index.html` / `/api/*` `404` JSON
+  - `README.md`: sección de demo con los comandos y la URL `http://localhost:8080`
+- **Exclusiones**: sin pantallas nuevas (C-16 y C-17 siguen pendientes), sin lógica de negocio backend, sin endpoints/migraciones/seeds nuevos, sin CORS, sin cambios en webhooks MP/WA
+- **Dependencias**: C-15 (PWA pública construida) + C-01 (infraestructura compose); C-02..C-13 archivados — C-14 sigue pendiente pero no bloquea (es backend de auditoría/exportación)
+- **Governance**: BAJO
+- **Leer antes**:
+  - `knowledge-base/08_arquitectura_propuesta.md` §Estructura de directorios y §Variables de entorno
+  - `knowledge-base/07_flujos_principales.md` §Flujo 1: Reserva online con seña
+  - `knowledge-base/03_actores_y_roles.md` §Rutas públicas
+  - `knowledge-base/05_reglas_de_negocio.md` §RN-SE-04 (secretos solo por env) y §RN-GL-02 (todo rechazo en rioplatense)
+  - `AGENTS.md` R6 / R8 / R9 / R11 (sin clínicos en localStorage, montos del servidor, sin PHI en logs, tests contra DB real)
 
 ---

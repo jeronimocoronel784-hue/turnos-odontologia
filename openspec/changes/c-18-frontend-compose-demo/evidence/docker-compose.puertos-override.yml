@@ -1,0 +1,16 @@
+# Override TEMPORAL de puertos — SOLO para la verificación local de C-18.
+# Uso: `docker compose -f docker-compose.yml -f openspec/changes/c-18-frontend-compose-demo/evidence/docker-compose.puertos-override.yml ...`
+# No cambia el compose del repo (design.md → Riesgos: mapeo temporal solo para la verificación).
+#
+# Motivos de este override en esta máquina:
+# - el Postgres nativo del host ya escucha en 5432 (no se puede bindear `db`),
+# - el contenedor ajeno `libreria` ya publica el 8000 (no se puede bindear `api`).
+# Internamente nada cambia: `api` sigue hablando con `db:5432` y el frontend con
+# `api:8000` dentro de la red de compose; solo cambia el puerto publicado en el host.
+services:
+  db:
+    ports: !override
+      - "5433:5432"
+  api:
+    ports: !override
+      - "8001:8000"
