@@ -76,3 +76,15 @@ jobs:
       - name: Tipos + build
         working-directory: src/frontend
         run: npm run build
+
+  openspec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Instalar OpenSpec CLI (npm global, mismo paquete que en local)
+        run: npm install -g @fission-ai/openspec@1.15.0
+      - name: Validar artefactos OpenSpec (specs + changes, strict)
+        run: openspec validate --all --strict
