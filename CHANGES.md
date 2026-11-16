@@ -39,6 +39,8 @@ C-01 foundation-setup
           └── C-16 frontend-agenda-clinica (+ C-08, C-10)
 ```
 
+> **Nota de realidad (2026-11-16)**: C-17 está completado y archivado (`openspec/changes/archive/2026-11-16-c-17-frontend-caja-os-admin/`) aunque C-14 sigue `[ ]`: la dependencia de C-14 (auditoría consultable + exportación 1-clic) queda como deuda hacia C-14, no bloquea el cierre de C-17.
+
 ### Paralelismo por fase
 
 > Cada "gate" es un punto de sincronización. Los changes dentro de un grupo pueden ejecutarse en paralelo.
@@ -79,6 +81,8 @@ GATE 7: GATE 6 completo ✓               ← FORK frontend + transversal
 GATE 8: C-14 ✓
   → C-17 frontend-caja-os-admin (solo — cierre + polish visual final)
 ```
+
+> **Nota de realidad (2026-11-16)**: C-17 se completó y archivó pese a que C-14 sigue pendiente; su parte de auditoría consultable / exportación 1-clic queda como deuda hacia C-14.
 
 ### Camino crítico (9 changes — mínimo irreducible)
 
@@ -247,7 +251,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > C-07, C-08, C-09, C-11 en paralelo tras C-06. C-10 espera a C-09 (consentimiento).
 
 ### [C-07] `lista-espera`
-- **Estado**: `[x]` completado (`c-07-lista-espera`) — modelo `ListaEspera`, migración `006_lista_espera`, oferta y rotación de huecos con idempotencia (`RN-LE-01/02`), aceptación en 1 clic por token opaco (`RN-LE-03`) y enganche automático al cancelar/reprogramar turnos.
+- **Estado**: `[x]` completado (`c-07-lista-espera`, archivado en `openspec/changes/archive/2026-11-01-c-07-lista-espera/`) — modelo `ListaEspera`, migración `006_lista_espera`, oferta y rotación de huecos con idempotencia (`RN-LE-01/02`), aceptación en 1 clic por token opaco (`RN-LE-03`) y enganche automático al cancelar/reprogramar turnos.
 - **Scope**: Lista de espera que rellena huecos liberados (Flujo 6)
   - Modelo `ListaEspera`: orden (`prioridad`,`created_at`), estados `activa → avisada → colocada | baja`, `canal_aviso`
   - Al liberarse slot: primera entrada compatible → aviso WA/email con ventana de respuesta → acepta por token crea Turno y marca `colocada`; vence → siguiente (RN-LE-01/02/03)
@@ -264,7 +268,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-08] `comunicaciones-mensajeria`
-- **Estado**: `[x]` completado (`c-08-comunicaciones-mensajeria`) — modelos `Plantilla` (versionada) y `Mensaje` (outbox), migración `007_comunicaciones_mensajeria`, seed de 5 plantillas, respeto de `optin_wa` (`RN-CO-01`), deduplicación (`RN-CO-02`), reintentos con backoff (`RN-CO-03`), versión de plantilla en outbox (`RN-CO-04`) y webhook `POST /webhooks/whatsapp` con firma HMAC-SHA256.
+- **Estado**: `[x]` completado (`c-08-comunicaciones-mensajeria`, archivado en `openspec/changes/archive/2026-11-01-c-08-comunicaciones-mensajeria/`) — modelos `Plantilla` (versionada) y `Mensaje` (outbox), migración `007_comunicaciones_mensajeria`, seed de 5 plantillas, respeto de `optin_wa` (`RN-CO-01`), deduplicación (`RN-CO-02`), reintentos con backoff (`RN-CO-03`), versión de plantilla en outbox (`RN-CO-04`) y webhook `POST /webhooks/whatsapp` con firma HMAC-SHA256.
 - **Scope**: Outbox + worker Redis + WA Business API + email + webhooks (Flujo 2)
   - Modelos `Mensaje` (outbox con `idempotency_key` único, estados `pendiente→enviado→entregado→leido|fallido`, `programado_para`) y `Plantilla` versionada
   - Worker Redis: toma vencidos, verifica `optin_wa`, envía por WA Cloud API, reintentos con backoff, log visible; sin doble recordatorio por (`turno`,plantilla,ventana) (RN-CO-02/03)
@@ -283,7 +287,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-09] `historia-clinica-odontograma`
-- **Estado**: `[x]` completado (`c-09-historia-clinica-odontograma`) — modelos `Evolucion` (append-only con enmienda aditiva), `Odontograma`, `PiezaEvento` (nomenclatura FDI 11–48 y 51–85), `AdjuntoClinico` y `Consentimiento` (`firma_hash` SHA-256, presencial y `/firmar/:token`), migración `008_historia_clinica_odontograma`, RBAC `Recurso.CLINICA` (`RN-CL-03`) y bloqueo de transición a `presente` sin consentimiento firmado en prestaciones invasivas (`RN-CL-02`).
+- **Estado**: `[x]` completado (`c-09-historia-clinica-odontograma`, archivado en `openspec/changes/archive/2026-11-01-c-09-historia-clinica-odontograma/`) — modelos `Evolucion` (append-only con enmienda aditiva), `Odontograma`, `PiezaEvento` (nomenclatura FDI 11–48 y 51–85), `AdjuntoClinico` y `Consentimiento` (`firma_hash` SHA-256, presencial y `/firmar/:token`), migración `008_historia_clinica_odontograma`, RBAC `Recurso.CLINICA` (`RN-CL-03`) y bloqueo de transición a `presente` sin consentimiento firmado en prestaciones invasivas (`RN-CL-02`).
 - **Scope**: Ficha + odontograma FDI inmutable + consentimientos con firma (Flujo 3)
   - `FichaClinica` 1:1 por paciente (edición solo rol clínico genera Evolución + Auditoría; recepción solo lectura, RN-CL-01/03)
   - `Odontograma` cabecera + `PiezaEvento` (FDI 11–48, superficie enum, evento enum, `turno_id` origen); historial inmutable — cambios son nuevos eventos; adjuntos RX/fotos/PDF
@@ -302,7 +306,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-10] `presupuestos-planes`
-- **Estado**: `[x]` completado (`c-10-presupuestos-planes`) — modelos `Presupuesto`, `PresupuestoItem` y `PresupuestoTurno`, migración `009_presupuestos_planes`, cálculo en servidor de cobertura OS vs. particular (`RN-OS-01`, `R8`), guardia de consentimiento firmado al aceptar prestaciones invasivas (`RN-CL-04`), vínculo N–N con turnos y endpoints `/api/presupuestos*`.
+- **Estado**: `[x]` completado (`c-10-presupuestos-planes`, archivado en `openspec/changes/archive/2026-11-01-c-10-presupuestos-planes/`) — modelos `Presupuesto`, `PresupuestoItem` y `PresupuestoTurno`, migración `009_presupuestos_planes`, cálculo en servidor de cobertura OS vs. particular (`RN-OS-01`, `R8`), guardia de consentimiento firmado al aceptar prestaciones invasivas (`RN-CL-04`), vínculo N–N con turnos y endpoints `/api/presupuestos*`.
 - **Scope**: Presupuestos y planes de tratamiento vinculados a citas
   - Modelos `Presupuesto` (estados `borrador→presentado→aceptado|rechazado→en_curso→finalizado`), `PresupuestoItem` (`a_cargo = precio*cantidad − cobertura_os`), vínculo N–N con Turnos
   - Aceptación con invasiva exige consentimiento firmado (chequea C-09, RN-CL-04); cálculo `a_cargo` con cobertura vigente o particular (RN-OS-01)
@@ -405,6 +409,21 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 
 ---
 
+### [C-19] `fix-commit-persistencia`
+- **Estado**: `[ ]` propuesto — artefactos listos en `openspec/changes/c-19-fix-commit-persistencia/` (4 requisitos / 12 escenarios; capability nueva `persistencia-sesiones`; pendiente de implementar)
+- **Scope**: fix transversal de persistencia — los routers `pacientes`, `clinica`, `caja` y `presupuestos` solo hacen `session.flush()` y nunca `session.commit()`, así que las altas/ediciones responden `2xx` pero no quedan guardadas (las cierra `deps.sesion_db` al terminar la request). `await session.commit()` en los 28 endpoints mutantes de esos 4 routers, sin cambio de contrato visible (mismos códigos/payloads), + tests de persistencia cross-sesión (≥2 casos por comportamiento, R11) y atomicidad todo-o-nada con auditoría en la misma transacción
+  - Sin cambios en `deps.sesion_db`, capa `application/*`, `unit_of_work.py`, routers que ya commitean, esquema/migraciones ni frontend
+  - Desbloquea la firma E2E de `C-16` (`CHANGES.md:431`) y `C-17` (`CHANGES.md:449`), hoy sujeta a este fix
+- **Dependencias**: ninguna nueva (fix sobre los routers ya entregados en C-05, C-09, C-10 y C-11); sin migraciones ni cambios de API
+- **Governance**: CRITICO
+- **Leer antes**:
+  - `knowledge-base/08_arquitectura_propuesta.md` §Patrones aplicados (sesión por request / Unit of Work)
+  - `knowledge-base/04_modelo_de_datos.md` §Auditoria (append-only, misma transacción)
+  - `knowledge-base/05_reglas_de_negocio.md` §RN-SE-01
+  - `AGENTS.md` R3 (async con session por request), R7 (sin hard delete), R8 (montos en servidor), R11 (tests contra DB real)
+
+---
+
 ## FASE 6 — Frontend PWA
 
 > Backend antes que frontend acoplado: las 3 vistas esperan a sus endpoints. C-15/C-16 en paralelo; C-17 cierra con admin + polish visual final.
@@ -428,7 +447,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-16] `frontend-agenda-clinica`
-- **Estado**: `[x]` completado en `openspec/changes/c-16-frontend-agenda-clinica/` (37/37 tareas; capabilities nuevas `frontend-shell-interno` y `frontend-agenda-clinica`; 12 archivos de test / 63 tests de Vitest en verde + `npm run build` (`tsc --noEmit` + `vite build` + SW) limpio; integración E2E de persistencia completa en endpoints de pacientes/HC sujeta al fix de commit de sesión documentado en `C-19`)
+- **Estado**: `[x]` completado y archivado en `openspec/changes/archive/2026-11-16-c-16-frontend-agenda-clinica/` (37/37 tareas; capabilities nuevas `frontend-shell-interno` y `frontend-agenda-clinica`; 12 archivos de test / 63 tests de Vitest en verde + `npm run build` (`tsc --noEmit` + `vite build` + SW) limpio; integración E2E de persistencia completa en endpoints de pacientes/HC sujeta al fix de commit de sesión documentado en `C-19`)
 - **Scope**: PWA interna — agenda + pacientes + clínica + comunicaciones
   - `features/agenda`: vista día/semana por profesional y sillón, estados, bloqueos, sobreturnos marcados, reprogramación 1-clic, reflejo en vivo de confirmaciones WA (US-001)
   - `features/pacientes`: ficha, búsqueda DNI/teléfono, opt-in WA; `features/clinica`: anamnesis/evolución, odontograma FDI interactivo, presupuestos del plan, firma de consentimiento en el acto
@@ -446,13 +465,13 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-17] `frontend-caja-os-admin`
-- **Estado**: `[x]` completado en `openspec/changes/c-17-frontend-caja-os-admin/` (43/43 tareas; capabilities nuevas `frontend-caja-os` y `frontend-admin-tenant` montadas sobre el shell de `C-16`; 18 archivos de test / 89 tests de Vitest en verde + `npm run build` (`tsc --noEmit` + `vite build` + SW) limpio; persistencia E2E de mutaciones de caja en base de datos sujeta al fix de commits documentado en `C-19`; auditoría consultable y exportación 1-clic transversales corresponden a `C-14`)
+- **Estado**: `[x]` completado y archivado en `openspec/changes/archive/2026-11-16-c-17-frontend-caja-os-admin/` (43/43 tareas; capabilities nuevas `frontend-caja-os` y `frontend-admin-tenant` montadas sobre el shell de `C-16`; 18 archivos de test / 89 tests de Vitest en verde + `npm run build` (`tsc --noEmit` + `vite build` + SW) limpio; persistencia E2E de mutaciones de caja en base de datos sujeta al fix de commits documentado en `C-19`; auditoría consultable y exportación 1-clic transversales corresponden a `C-14`)
 - **Scope**: PWA interna — caja/OS/admin + dashboards + polish visual final del producto
   - `features/caja`: movimientos por medio, cierre con diferencia visible, historial; `features/os`: padrón, cobertura al agendar, liquidación con débitos + export
-  - `features/admin`: configuración tenant/prestaciones/precios/horarios/políticas, usuarios/roles, auditoría consultable, exportación 1-clic (US-050/051)
-  - Importación Excel de pacientes/prestaciones para onboarding en 1 día (US-063) + cierre de caja y reportes del dueño
+  - `features/admin`: configuración tenant/prestaciones/precios/horarios/políticas, usuarios/roles (US-050/051); auditoría consultable y exportación 1-clic **pendientes en C-14** (no entregados acá)
+  - Cierre de caja y reportes del dueño; Importación Excel de pacientes/prestaciones para onboarding en 1 día (US-063) **pendiente** (no entregado en C-17)
   - Restyle/UI polish final sobre producto estable: tokens de diseño, estados vacíos/error en rioplatense, responsive móvil-first verificado
-  - Tests: cierre muestra diferencia, reapertura solo Dueño en UI, import Excel mapea pacientes, dashboards leen datos reales
+  - Tests: cierre muestra diferencia, reapertura solo Dueño en UI, dashboards leen datos reales
 - **Dependencias**: C-13, C-14
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -468,7 +487,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > Después de C-15: sin pantallas nuevas, solo el cableado del frontend al stack para grabar el video del TP. Corre en paralelo con C-14/C-16; no está en el camino crítico.
 
 ### [C-18] `frontend-compose-demo`
-- **Estado**: `[x]` completado en `openspec/changes/c-18-frontend-compose-demo/` (17/17 tareas: servicio `frontend` en `docker-compose.yml` en `:8080`, proxy inverso `/api/` en `nginx.conf`, utilería idempotente `app.scripts.usuario_demo`, `tests/test_demo_frontend.py` y documentación en `README.md`)
+- **Estado**: `[x]` completado y archivado en `openspec/changes/archive/2026-11-16-c-18-frontend-compose-demo/` (17/17 tareas: servicio `frontend` en `docker-compose.yml` en `:8080`, proxy inverso `/api/` en `nginx.conf`, utilería idempotente `app.scripts.usuario_demo`, `tests/test_demo_frontend.py` y documentación en `README.md`)
 - **Propósito**: mostrar "frontend y backend levantados con el flujo implementado": `docker-compose.yml` hoy no declara el servicio `frontend` (lo admite el README) y la imagen nginx no-root ya funcionando (`src/frontend/Dockerfile.frontend` + `nginx.conf`) queda sin cablear al stack ni con reverse proxy hacia la API.
 - **Scope**: servicio frontend en compose + proxy inverso `/api` + verificación end-to-end
   - Servicio `frontend` en `docker-compose.yml` (build desde `src/frontend/Dockerfile.frontend`, healthcheck heredado, puerto `8080:80`, `depends_on: api` sano)
@@ -476,7 +495,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
   - Utilería dev `python -m app.scripts.usuario_demo`: usuario demo con hash bcrypt tomando `DEMO_PASSWORD` del entorno (placeholder en `.env.example`), porque el Dueño del seed usa hash pbkdf2 que nunca autentica (`tests/test_seguridad_passwords.py`)
   - Tests de integración `tests/test_demo_frontend.py` contra el stack real (R11, 2 casos por comportamiento): health `200` / login `401`, reserva `200` / slug inexistente `404`, ruta SPA `200` `index.html` / `/api/*` `404` JSON
   - `README.md`: sección de demo con los comandos y la URL `http://localhost:8080`
-- **Exclusiones**: sin pantallas nuevas (C-16 y C-17 siguen pendientes), sin lógica de negocio backend, sin endpoints/migraciones/seeds nuevos, sin CORS, sin cambios en webhooks MP/WA
+- **Exclusiones**: sin pantallas nuevas (C-16 y C-17 se completaron y archivaron el 2026-11-16, sin pantallas nuevas en este change), sin lógica de negocio backend, sin endpoints/migraciones/seeds nuevos, sin CORS, sin cambios en webhooks MP/WA
 - **Dependencias**: C-15 (PWA pública construida) + C-01 (infraestructura compose); C-02..C-13 archivados — C-14 sigue pendiente pero no bloquea (es backend de auditoría/exportación)
 - **Governance**: BAJO
 - **Leer antes**:

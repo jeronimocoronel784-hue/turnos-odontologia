@@ -414,7 +414,7 @@ knowledge-base/       Fuente de verdad del dominio (visión, datos, reglas, fluj
 openspec/             Specs y changes de OpenSpec (fuente del CLI)
 .agents/              Skills y configuración de agentes IA
 .opencode/            Comandos y configuración de OpenCode
-CHANGES.md            Índice operativo de implementación (17 changes, 7 fases)
+CHANGES.md            Índice operativo de implementación (19 changes, 8 fases)
 AGENTS.md / CLAUDE.md Reglas del proyecto para agentes
 pytest.ini / .env.example / .mcp.json / mcp_server.py / .github/workflows/ci.yml
 ```
@@ -547,11 +547,15 @@ secreto real vive en el repo.
 - [x] C-08 `comunicaciones-mensajeria` (`openspec/changes/archive/2026-11-01-c-08-comunicaciones-mensajeria/`).
 - [x] C-09 `historia-clinica-odontograma` (`openspec/changes/archive/2026-11-01-c-09-historia-clinica-odontograma/`).
 - [x] C-10 `presupuestos-planes` (`openspec/changes/archive/2026-11-01-c-10-presupuestos-planes/`).
-- [x] C-11 `caja-senas` (implementado en `openspec/changes/c-11-caja-senas/`): modelos + migración `010`, casos de uso de señas/caja, endpoints `/api/senas*` y `/api/caja/*`.
-- [x] C-12 `mercadopago-webhooks` (implementado en `openspec/changes/c-12-mercadopago-webhooks/`): modelo `CobroMP` + migración `011`, preferencias MP, webhook firmado e idempotente, conciliación y endpoints `/api/pagos/mercadopago/*`.
-- [x] C-13 `obras-sociales-liquidacion` (implementado en `openspec/changes/c-13-obras-sociales-liquidacion/`): cobertura compartida + migraciones `012` y `013`, liquidación por OS/período con débitos y estados `borrador`/`presentada`/`pagada`/`con_debitos`/`anulada`, reclamo único por obra social y período, endpoints `/api/os/cobertura` y `/api/liquidaciones*` con exportación CSV/JSON.
+- [x] C-11 `caja-senas` (`openspec/changes/archive/2026-11-01-c-11-caja-senas/`): modelos + migración `010`, casos de uso de señas/caja, endpoints `/api/senas*` y `/api/caja/*`.
+- [x] C-12 `mercadopago-webhooks` (`openspec/changes/archive/2026-11-02-c-12-mercadopago-webhooks/`): modelo `CobroMP` + migración `011`, preferencias MP, webhook firmado e idempotente, conciliación y endpoints `/api/pagos/mercadopago/*`.
+- [x] C-13 `obras-sociales-liquidacion` (`openspec/changes/archive/2026-11-05-c-13-obras-sociales-liquidacion/`): cobertura compartida + migraciones `012` y `013`, liquidación por OS/período con débitos y estados `borrador`/`presentada`/`pagada`/`con_debitos`/`anulada`, reclamo único por obra social y período, endpoints `/api/os/cobertura` y `/api/liquidaciones*` con exportación CSV/JSON.
 - [x] C-15 `reserva-publica-pwa` (`openspec/changes/archive/2026-11-12-c-15-reserva-publica-pwa/`): PWA pública de reserva online y autogestión de turnos por token opaco (React + TypeScript + Vite PWA): catálogo y slots en `/reservar/:slug`, formulario sin login con validación DNI/teléfono, seña guiada a Mercado Pago con montos del servidor, `/mis-turnos/:token`, firma de consentimiento en `/firmar/:token` y shell offline con service worker.
-- [ ] Próximos (Fase 5 / Fase 6): C-14 `auditoria-exportacion`.
+- [x] C-16 `frontend-agenda-clinica` (`openspec/changes/archive/2026-11-16-c-16-frontend-agenda-clinica/`): PWA interna (agenda, pacientes, clínica, comunicaciones) con guards de rol en UI; 37/37 tareas, 63 tests de Vitest.
+- [x] C-17 `frontend-caja-os-admin` (`openspec/changes/archive/2026-11-16-c-17-frontend-caja-os-admin/`): caja/OS/admin + dashboards + polish visual final; 43/43 tareas, 89 tests de Vitest.
+- [x] C-18 `frontend-compose-demo` (`openspec/changes/archive/2026-11-16-c-18-frontend-compose-demo/`): servicio `frontend` en `docker-compose.yml` con proxy inverso `/api`, usuario demo y tests de integración; 17/17 tareas.
+- [ ] C-19 `fix-commit-persistencia` (`openspec/changes/c-19-fix-commit-persistencia/`, propuesto): fix CRÍTICO de persistencia — commit en los 28 endpoints mutantes de pacientes/HC/caja/presupuestos (hoy responden `2xx` sin guardar); desbloquea la firma E2E de C-16 y C-17.
+- [ ] Pendientes: C-14 `auditoria-exportacion` (Fase 5, transversal — trail consultable + exportación 1-clic) y C-19 `fix-commit-persistencia` (fix transversal, propuesto).
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.
