@@ -5,7 +5,7 @@ import {
   useMutacionesAgenda,
 } from "./queries";
 import { getIdentidad } from "../../shared/sesion";
-import { EstadoTurno, TurnoRead, BloqueoRead } from "../../shared/api-types";
+import { EstadoTurno, TurnoRead } from "../../shared/api-types";
 import {
   formatearHora,
   formatearFechaCorta,

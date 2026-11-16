@@ -1,4 +1,3 @@
-import React from "react";
 import { ErrorApi } from "./api-client";
 
 export function EstadoCargando({ mensaje = "Cargando..." }: { mensaje?: string }) {

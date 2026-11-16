@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guía Técnica: Cómo interpretar y utilizar Swagger UI (OpenAPI)</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 18mm 16mm;
+  }
+  
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.55;
+    background-color: #ffffff;
+    font-size: 13.5px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Document Header */
+  .doc-header {
+    border-bottom: 2px solid #0284c7;
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+  }
+
+  .badge-tag {
+    display: inline-block;
+    background-color: #e0f2fe;
+    color: #0369a1;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-size: 23px;
+    color: #0f172a;
+    font-weight: 800;
+    line-height: 1.25;
+    margin-bottom: 8px;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 11.5px;
+    margin-top: 10px;
+  }
+
+  .meta-item strong {
+    color: #475569;
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Section Styles */
+  h2 {
+    font-size: 16px;
+    color: #0f172a;
+    font-weight: 700;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+  }
+
+  h3 {
+    font-size: 13.5px;
+    color: #1e293b;
+    font-weight: 700;
+    margin-top: 14px;
+    margin-bottom: 6px;
+  }
+
+  p {
+    margin-bottom: 10px;
+    color: #334155;
+  }
+
+  ul, ol {
+    margin-left: 20px;
+    margin-bottom: 12px;
+    color: #334155;
+  }
+
+  li {
+    margin-bottom: 4px;
+  }
+
+  strong {
+    color: #0f172a;
+  }
+
+  /* HTTP Verbs Badges */
+  .verb {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .verb-get { background-color: #dbeafe; color: #1d4ed8; }
+  .verb-post { background-color: #dcfce7; color: #15803d; }
+  .verb-put, .verb-patch { background-color: #fef3c7; color: #b45309; }
+  .verb-delete { background-color: #fee2e2; color: #b91c1c; }
+
+  /* Callout Boxes */
+  .callout {
+    border-left: 4px solid;
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 12.5px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .callout-title {
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 12.5px;
+  }
+
+  .callout-important {
+    background-color: #f5f3ff;
+    border-left-color: #7c3aed;
+    color: #4c1d95;
+  }
+  .callout-important .callout-title { color: #6d28d9; }
+
+  .callout-warning {
+    background-color: #fffbeb;
+    border-left-color: #f59e0b;
+    color: #78350f;
+  }
+  .callout-warning .callout-title { color: #b45309; }
+
+  .callout-tip {
+    background-color: #f0fdf4;
+    border-left-color: #10b981;
+    color: #064e3b;
+  }
+  .callout-tip .callout-title { color: #047857; }
+
+  .callout-note {
+    background-color: #eff6ff;
+    border-left-color: #3b82f6;
+    color: #1e3a8a;
+  }
+  .callout-note .callout-title { color: #1d4ed8; }
+
+  /* Code / Diagram Blocks */
+  pre, code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11.5px;
+  }
+
+  p code, li code {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+  }
+
+  pre {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 12px 14px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 10px 0 14px 0;
+    line-height: 1.45;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 12px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  th, td {
+    padding: 8px 10px;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+  }
+
+  th {
+    background-color: #f8fafc;
+    color: #334155;
+    font-weight: 700;
+  }
+
+  tr:nth-child(even) td {
+    background-color: #fcfcfd;
+  }
+
+  /* Flowchart / Box Visual */
+  .diagram-box {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 12px 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    color: #1e293b;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    white-space: pre;
+    line-height: 1.35;
+  }
+
+  .workflow-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .step-card {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+  }
+
+  .step-num {
+    font-weight: 800;
+    color: #0284c7;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  .step-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .footer-note {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 10.5px;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .no-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+</style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="doc-header">
+    <span class="badge-tag">Metodología de Programación • Guía Técnica</span>
+    <h1>Cómo interpretar y utilizar Swagger UI (OpenAPI) como un Profesional</h1>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <strong>Audiencia</strong>
+        Desarrolladores Junior / Pasantes
+      </div>
+      <div class="meta-item">
+        <strong>Rol Emisor</strong>
+        Tech Lead / Docente de Metodología
+      </div>
+      <div class="meta-item">
+        <strong>Estándar</strong>
+        OpenAPI 3.0 / Swagger UI
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 1 -->
+  <h2>1. Fundamentos: ¿Qué estamos viendo realmente?</h2>
+  <p>
+    Antes de hacer clic en botones, debemos tener clara la distinción conceptual entre dos términos que suelen confundirse habitualmente en la industria:
+  </p>
+  <ul>
+    <li><strong>OpenAPI Specification (OAS):</strong> Es una especificación estándar e independiente del lenguaje (formalizada en JSON o YAML) que define el <strong>contrato formal</strong> de una API RESTful: qué rutas existen, qué parámetros esperan, qué esquemas devuelven y qué errores emiten.</li>
+    <li><strong>Swagger UI:</strong> Es la <strong>interfaz gráfica interactiva</strong> que consume dicho archivo JSON/YAML y lo renderiza en el navegador, permitiendo no solo leer el contrato de forma amigable, sino también interactuar directamente con el backend en tiempo real.</li>
+  </ul>
+
+  <div class="diagram-box">┌─────────────────────────────────────────────────────────────────┐
+│ Backend (FastAPI / Express / Spring Boot / .NET)                │
+│   └── Genera automáticamente: openapi.json (Contrato Formal)    │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Swagger UI (Renderizado interactivo en /docs o /swagger)         │
+│   └── Consume el JSON y genera la documentación viva y ejecutable│
+└─────────────────────────────────────────────────────────────────┘</div>
+
+  <div class="callout callout-important">
+    <div class="callout-title">📌 Principio de Metodología: Contract-Driven Development</div>
+    El contrato OpenAPI es la <strong>fuente de verdad única</strong> entre el equipo de backend, frontend, mobile y QA. Si hay discrepancia entre lo que dice Swagger y lo que programaste, o el código está mal, o la documentación no se actualizó. No programes a ciegas: <strong>el contrato se lee antes de escribir una sola línea de código</strong>.
+  </div>
+
+  <!-- SECCIÓN 2 -->
+  <h2>2. Anatomía de la Interfaz de Swagger UI</h2>
+  <p>Al acceder a la URL de documentación (habitualmente <code>/docs</code> o <code>/swagger</code>), la vista se articula en cuatro secciones principales:</p>
+
+  <h3>A. La Cabecera y el botón de Autorización (<code>Authorize</code>)</h3>
+  <p>
+    En la esquina superior derecha se encuentra el botón <strong><code>Authorize</code></strong> con un candado. Si la API requiere autenticación (generalmente mediante JWT Bearer tokens o API Keys), <strong>debes autenticarte aquí primero</strong>:
+  </p>
+  <ul>
+    <li>Haces clic en <code>Authorize</code>.</li>
+    <li>Ingresas el token con el formato requerido (muchos frameworks exigen <code>Bearer &lt;token&gt;</code>, otros lo inyectan automáticamente).</li>
+    <li>Al presionar <em>Authorize</em>, todas las peticiones posteriores enviarán la cabecera <code>Authorization: Bearer ...</code> de forma automática.</li>
+  </ul>
+
+  <h3>B. Semántica y Código de Color de los Verbos HTTP</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 15%;">Verbo</th>
+        <th style="width: 25%;">Semántica</th>
+        <th>Comportamiento Esperado</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="verb verb-get">GET</span></td>
+        <td>Lectura / Consulta</td>
+        <td>Idempotente. <strong>Nunca</strong> debe alterar el estado en la base de datos.</td>
+      </tr>
+      <tr>
+        <td><span class="verb verb-post">POST</span></td>
+        <td>Creación / Acción</td>
+        <td>No idempotente. Crea nuevos registros o dispara procesos de negocio.</td>
+      </tr>
+      <tr>
+        <td><span class="verb verb-put">PUT</span> / <span class="verb verb-patch">PATCH</span></td>
+        <td>Modificación</td>
+        <td><code>PUT</code> reemplaza la entidad completa; <code>PATCH</code> modifica solo los campos indicados.</td>
+      </tr>
+      <tr>
+        <td><span class="verb verb-delete">DELETE</span></td>
+        <td>Baja / Eliminación</td>
+        <td>Elimina recursos física o lógicamente (soft-delete como <code>activo = false</code>).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- SECCIÓN 3 -->
+  <div class="no-break">
+    <h2>3. Cómo leer la ficha de un Endpoint</h2>
+    <p>Al expandir cualquier endpoint en la lista, encontrarás los siguientes tres bloques analíticos:</p>
+  </div>
+
+  <h3>1. Parámetros (<code>Parameters</code>)</h3>
+  <ul>
+    <li><strong>Path Parameters (<code>path</code>):</strong> Forman parte de la URL (ej: <code>/api/pacientes/{id}</code>). Son obligatorios por definición.</li>
+    <li><strong>Query Parameters (<code>query</code>):</strong> Opciones de filtrado, paginación o búsqueda posteriores al signo <code>?</code> (ej: <code>?dni=30111222&amp;solo_activos=true</code>). Fíjate si tienen la etiqueta <em>required</em> o valores default.</li>
+    <li><strong>Header / Cookie Parameters:</strong> Metadatos o tokens de sesión transmitidos en cabeceras o cookies.</li>
+  </ul>
+
+  <h3>2. Cuerpo de la Petición (<code>Request body</code>)</h3>
+  <p>En métodos con carga útil (<code>POST</code>, <code>PUT</code>, <code>PATCH</code>), se detalla el payload esperado:</p>
+  <ul>
+    <li><strong>Example Value:</strong> Un JSON sintácticamente válido que puedes copiar, inspeccionar y editar.</li>
+    <li><strong>Schema:</strong> La estructura estricta. Revela tipos de datos (<code>string</code>, <code>integer</code>, <code>date</code>, <code>UUID</code>), campos obligatorios marcados con asterisco rojo (<code>*</code>), longitudes mínimas y expresiones regulares de validación.</li>
+  </ul>
+
+  <h3>3. Respuestas Documentadas (<code>Responses</code>)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 22%;">Código de Estado</th>
+        <th>Significado y Diagnóstico</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>200 OK / 201 Created</code></td>
+        <td>Petición exitosa. El esquema documenta el JSON que retornará el servidor.</td>
+      </tr>
+      <tr>
+        <td><code>400 / 422 Unprocessable</code></td>
+        <td>Error del cliente. <strong>422</strong> indica que enviaste un dato que viola el esquema (ej: email sin '@').</td>
+      </tr>
+      <tr>
+        <td><code>401 / 403 Forbidden</code></td>
+        <td>Falta de autenticación (401) o permisos insuficientes según la matriz RBAC de roles (403).</td>
+      </tr>
+      <tr>
+        <td><code>404 Not Found</code></td>
+        <td>El recurso solicitado no existe o pertenece a otro inquilino/tenant (aislamiento).</td>
+      </tr>
+      <tr>
+        <td><code>409 Conflict</code></td>
+        <td>Colisión con una regla de negocio o clave única (ej: DNI duplicado en el consultorio).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- SECCIÓN 4 -->
+  <h2>4. Flujo Práctico: Ejecutando peticiones con "Try it out"</h2>
+  <p>Swagger UI actúa como un cliente HTTP integrado para pruebas exploratorias rápidas. Sigue siempre este circuito metódico:</p>
+
+  <div class="workflow-grid">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-text">Identificar Endpoint</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-text">Clic 'Try it out'</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-text">Cargar Parámetros</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-text">Presionar 'Execute'</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">5</div>
+      <div class="step-text">Evaluar cURL y Response</div>
+    </div>
+  </div>
+
+  <p><strong>Inspección del resultado luego de <code>Execute</code>:</strong></p>
+  <ul>
+    <li><strong><code>cURL</code> generado:</strong> El comando exacto de terminal que ejecutó la llamada. <em>Tip senior:</em> si una petición falla en el frontend (React/Axios), copia este comando cURL en tu terminal: si funciona en cURL pero falla en tu web, el error está en tu código cliente (headers, CORS o serialización), no en el backend.</li>
+    <li><strong><code>Request URL</code>:</strong> La URL final con todos los parámetros de ruta y query string interpolados.</li>
+    <li><strong><code>Response body</code> y <code>Headers</code>:</strong> El código HTTP devuelto y el payload JSON para verificar datos.</li>
+  </ul>
+
+  <!-- SECCIÓN 5 -->
+  <h2>5. La Sección de Schemas / Modelos</h2>
+  <p>
+    Al pie de la documentación se encuentra la sección <strong><code>Schemas</code></strong>. Para un desarrollador senior es el bloque más valioso:
+  </p>
+  <ul>
+    <li>Define los <strong>DTOs (Data Transfer Objects)</strong> formales del sistema.</li>
+    <li>Expone los tipos primitivos, campos nullables y modelos anidados (ej: cómo se vincula <code>Paciente</code> con su <code>FichaClinica</code>).</li>
+    <li><strong>Acelerador de Frontend:</strong> Si programas en TypeScript, esta sección te dicta exactamente qué interfaces o types debes definir en tu frontend, garantizando contratos idénticos extremo a extremo.</li>
+  </ul>
+
+  <!-- SECCIÓN 6 -->
+  <div class="no-break">
+    <h2>6. Buenas Prácticas y Errores Frecuentes</h2>
+
+    <div class="callout callout-warning">
+      <div class="callout-title">⚠️ 1. Swagger no es un simulador ni un sandbox mockeado</div>
+      Al hacer clic en <code>Execute</code>, <strong>la petición se envía al servidor y base de datos real a la que apunta la interfaz</strong>. Si estás conectado al Swagger de Staging o Producción y disparas un <code>DELETE /api/pacientes/123</code>, <strong>eliminarás el registro real</strong>. Verifica siempre el selector de servidores arriba a la izquierda.
+    </div>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">💡 2. Cómo interpretar un error 422 (Unprocessable Entity)</div>
+      En frameworks modernos con validación de tipos (FastAPI/Pydantic, ASP.NET), un 422 no es un bug del servidor: el backend rechazó la petición porque el payload viola el contrato. Revisa la propiedad <code>detail</code>: te indicará la clave exacta (<code>loc</code>) y la regla incumplida (<code>msg</code>).
+    </div>
+
+    <div class="callout callout-note">
+      <div class="callout-title">ℹ️ 3. El error 'TypeError: Failed to fetch' (CORS)</div>
+      Si al hacer <code>Execute</code> el navegador responde con <code>TypeError: Failed to fetch</code>, en el 95% de los casos se debe a una política de CORS (Cross-Origin Resource Sharing) bloqueada en el backend o a certificados SSL autofirmados no aceptados en el navegador.
+    </div>
+
+    <div class="callout callout-tip">
+      <div class="callout-title">💡 4. Swagger UI no reemplaza a las suites de Tests</div>
+      Swagger sirve para validación visual rápida y exploración interactiva. La verdadera garantía de calidad descansa en suites de tests automatizadas (<code>pytest</code>, <code>jest</code>). Valida tu hipótesis en Swagger, pero aségurala en tus tests de integración.
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <span>Cátedra de Metodología de Programación • Documento de Transferencia Técnica</span>
+    <span>Página 1 de 1 • Formato Digital</span>
+  </div>
+
+</body>
+</html>

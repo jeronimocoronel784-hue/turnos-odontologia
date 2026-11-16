@@ -49,13 +49,13 @@
 
 ## 6. Comunicaciones
 
-- [ ] 6.1 Implementar el log de mensajes por turno y por paciente (`GET /api/mensajes`) con estado, intentos, programado y cuerpo; tests: lista los mensajes del turno, estado vacío explica el opt-in y error del proveedor se muestra sanitizado.
-- [ ] 6.2 Implementar reenvío manual y el caso de paciente sin opt-in; tests: reenvío agrega mensaje pendiente, sin opt-in advierte y no marca como enviado y el fallo de la API deja el mensaje reenviable.
-- [ ] 6.3 Implementar plantillas: lectura para recepción, nueva versión para dueño, versión conservada en el log; tests: recepción no ve acciones, dueño crea versión incrementada y un mensaje viejo conserva su versión.
+- [x] 6.1 Implementar el log de mensajes por turno y por paciente (`GET /api/mensajes`) con estado, intentos, programado y cuerpo; tests: lista los mensajes del turno, estado vacío explica el opt-in y error del proveedor se muestra sanitizado.
+- [x] 6.2 Implementar reenvío manual y el caso de paciente sin opt-in; tests: reenvío agrega mensaje pendiente, sin opt-in advierte y no marca como enviado y el fallo de la API deja el mensaje reenviable.
+- [x] 6.3 Implementar plantillas: lectura para recepción, nueva versión para dueño, versión conservada en el log; tests: recepción no ve acciones, dueño crea versión incrementada y un mensaje viejo conserva su versión.
 
 ## 7. Verificación de integración y cierre
 
-- [ ] 7.1 Ejecutar `npm run build` y `npm run test:run` en `src/frontend` y corregir lo que aparezca; verificar ambos en verde y dejar la salida registrada en el resumen del apply.
-- [ ] 7.2 Verificación manual contra la API real (Postgres desechable `127.0.0.1:5433`, usuarios demo): login, carga de agenda, alta de turno y cambio de estado; verificar que el `POST /api/turnos` aparece al refrescar y documentar como bloqueado lo que dependa del bug de persistencia (pacientes/HC) con referencia al change C-19.
-- [ ] 7.3 Actualizar `CHANGES.md` (estado de C-16, las dos capabilities nuevas y la dependencia del fix de persistencia) y verificar que la entrada quede consistente con `openspec list --specs`.
-- [ ] 7.4 Agregar el paso de tests de frontend al workflow de CI (`.github/workflows/ci.yml`) y verificar que el YAML quede válido y que el paso corra `npm ci && npm run test:run` en `src/frontend`.
+- [x] 7.1 Ejecutar `npm run build` y `npm run test:run` en `src/frontend` y corregir lo que aparezca; verificar ambos en verde y dejar la salida registrada en el resumen del apply.
+- [x] 7.2 Verificación manual contra la API real (Postgres desechable `127.0.0.1:5433`, usuarios demo): login, carga de agenda, alta de turno y cambio de estado; verificar que el `POST /api/turnos` aparece al refrescar y documentar como bloqueado lo que dependa del bug de persistencia (pacientes/HC) con referencia al change C-19.
+- [x] 7.3 Actualizar `CHANGES.md` (estado de C-16, las dos capabilities nuevas y la dependencia del fix de persistencia) y verificar que la entrada quede consistente con `openspec list --specs`.
+- [x] 7.4 Agregar el paso de tests de frontend al workflow de CI (`.github/workflows/ci.yml`) y verificar que el YAML quede válido y que el paso corra `npm ci && npm run test:run` en `src/frontend`.

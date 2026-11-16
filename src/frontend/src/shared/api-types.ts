@@ -473,6 +473,31 @@ export interface ConsentimientoCreateInput {
   texto_contenido: string;
 }
 
+export interface ConsentimientoFirmaInput {
+  firmado_por: string;
+  firma_datos?: string;
+  canal?: string;
+}
+
+export interface ConsentimientoRead {
+  id: string;
+  tenant_id: string;
+  paciente_id: string;
+  prestacion_id: string;
+  turno_id?: string | null;
+  texto_version: string;
+  texto_contenido: string;
+  firmado_por?: string | null;
+  firmado_at?: string | null;
+  firma_hash?: string | null;
+  canal?: string | null;
+  revocado: boolean;
+  revocado_at?: string | null;
+  revocado_motivo?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ConsentimientoRevocarInput {
   motivo: string;
 }
@@ -517,6 +542,11 @@ export interface PresupuestoTurnoRead {
   created_at: string;
 }
 
+export interface PresupuestoVincularTurnoInput {
+  turno_id: string;
+  presupuesto_item_id?: string;
+}
+
 export interface PresupuestoRead {
   id: string;
   tenant_id: string;
@@ -540,7 +570,7 @@ export interface PresupuestoRead {
 // ---------------------------------------------------------------------------
 
 export type CanalMensaje = "wa" | "email" | "manual";
-export type EstadoMensaje = "pendiente" | "enviado" | "fallido" | "cancelado";
+export type EstadoMensaje = "pendiente" | "enviado" | "fallido" | "cancelado" | "omitido";
 
 export interface PlantillaCreateInput {
   codigo: string;
@@ -659,5 +689,268 @@ export interface UsuarioRead {
   rol: RolUsuario;
   matricula?: string | null;
   activo: boolean;
+}
+
+export interface UsuarioCreateInput {
+  email: string;
+  nombre: string;
+  password: string;
+  rol: RolUsuario;
+  matricula?: string | null;
+}
+
+export interface UsuarioRolUpdateInput {
+  rol: RolUsuario;
+  matricula?: string | null;
+}
+
+export interface SillonCreateInput {
+  nombre: string;
+  sucursal?: string;
+  activo?: boolean;
+}
+
+export interface SillonUpdateInput {
+  nombre?: string;
+  sucursal?: string;
+  activo?: boolean;
+}
+
+export interface PrestacionCreateInput {
+  nombre: string;
+  duracion_min: number;
+  precio_particular: string;
+  requiere_sena?: boolean;
+  monto_sena?: string | null;
+  invasiva?: boolean;
+  activa?: boolean;
+}
+
+export interface PrestacionUpdateInput {
+  nombre?: string;
+  duracion_min?: number;
+  precio_particular?: string;
+  requiere_sena?: boolean;
+  monto_sena?: string | null;
+  invasiva?: boolean;
+  activa?: boolean;
+}
+
+export interface CoberturaOSCreateInput {
+  obra_social: string;
+  prestacion_id: string;
+  arancel: string;
+  copago?: string;
+  vigencia_desde: string;
+  vigencia_hasta?: string | null;
+  activa?: boolean;
+}
+
+export interface CoberturaOSUpdateInput {
+  obra_social?: string;
+  arancel?: string;
+  copago?: string;
+  vigencia_desde?: string;
+  vigencia_hasta?: string | null;
+  activa?: boolean;
+}
+
+export interface PoliticasUpdateInput {
+  anticipacion_min_dias?: number;
+  sena_default_pct?: number;
+  cancelacion_horas?: number;
+  anticipacion_min_hs?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Caja diaria, Movimientos, Cierres, Cobro de Atención y Señas (C-11 / C-17)
+// ---------------------------------------------------------------------------
+
+export type MedioPago = "efectivo" | "transferencia" | "mercadopago" | "tarjeta";
+export type TipoMovimientoCaja = "ingreso" | "egreso";
+export type EstadoCierreCaja = "abierto" | "cerrado";
+export type EstadoSena = "pendiente" | "cobrada" | "aplicada" | "devuelta" | "vencida";
+
+export interface SenaCreateInput {
+  turno_id: string;
+  vence_at?: string;
+}
+
+export interface SenaCobrarInput {
+  medio: MedioPago;
+}
+
+export interface SenaResolverCancelacionInput {
+  ausente?: boolean;
+  motivo?: string;
+}
+
+export interface SenaRead {
+  id: string;
+  tenant_id: string;
+  turno_id: string;
+  monto: string;
+  estado: EstadoSena;
+  mp_payment_id?: string | null;
+  vence_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MovimientoCajaCreateInput {
+  tipo: TipoMovimientoCaja;
+  concepto: string;
+  medio: MedioPago;
+  monto: string;
+  turno_id?: string;
+  sena_id?: string;
+}
+
+export interface MovimientoCajaRead {
+  id: string;
+  tenant_id: string;
+  tipo: TipoMovimientoCaja;
+  concepto: string;
+  medio: MedioPago;
+  monto: string;
+  turno_id?: string | null;
+  sena_id?: string | null;
+  cobro_mp_id?: string | null;
+  cierre_id?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface CierreCajaAbrirInput {
+  fecha: string;
+}
+
+export interface CierreCajaCerrarInput {
+  total_contado: string;
+}
+
+export interface CierreCajaReabrirInput {
+  motivo: string;
+}
+
+export interface CierreCajaRead {
+  id: string;
+  tenant_id: string;
+  fecha: string;
+  total_sistema: string;
+  total_contado?: string | null;
+  diferencia?: string | null;
+  estado: EstadoCierreCaja;
+  abierto_por: string;
+  cerrado_por?: string | null;
+  cerrado_at?: string | null;
+  reabierto_motivo?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LiquidacionTurnoRead {
+  turno_id: string;
+  precio_particular: string;
+  cobertura_os: string;
+  sena_cobrada: string;
+  saldo: string;
+  obra_social?: string | null;
+}
+
+export interface CobrarTurnoInput {
+  medio: MedioPago;
+  obra_social?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Obras Sociales y Liquidaciones (C-13 / C-17)
+// ---------------------------------------------------------------------------
+
+export type EstadoArancel = "vigente" | "vencido" | "sin_cobertura";
+export type EstadoLiquidacionOS =
+  | "borrador"
+  | "presentada"
+  | "pagada"
+  | "con_debitos"
+  | "anulada";
+
+export interface CoberturaLookupRead {
+  prestacion_id: string;
+  obra_social?: string | null;
+  cobertura_id?: string | null;
+  precio_particular: string;
+  cobertura: string;
+  monto_a_cargo: string;
+  estado_arancel: EstadoArancel;
+  vigencia_desde?: string | null;
+  vigencia_hasta?: string | null;
+  arancel_vencido: boolean;
+  advertencia?: string | null;
+}
+
+export interface LiquidacionOSCreateInput {
+  obra_social: string;
+  periodo: string;
+}
+
+export interface LiquidacionOSDetalleDebitoInput {
+  turno_id: string;
+  monto_reconocido: string;
+  debito_motivo?: string;
+}
+
+export interface LiquidacionOSDebitosInput {
+  observaciones?: string;
+  detalles: LiquidacionOSDetalleDebitoInput[];
+}
+
+export interface ResultadoOSInput {
+  resultado: "pagada" | "con_debitos";
+  observaciones?: string;
+  detalles: LiquidacionOSDetalleDebitoInput[];
+}
+
+export interface LiquidacionOSCerrarInput {
+  observaciones?: string;
+}
+
+export interface LiquidacionOSAnularInput {
+  motivo: string;
+}
+
+export interface LiquidacionOSDetalleRead {
+  id: string;
+  turno_id: string;
+  fecha_turno: string;
+  prestacion: string;
+  monto_reclamado: string;
+  monto_reconocido?: string | null;
+  debito_motivo?: string | null;
+  arancel_vencido: boolean;
+  vigente: boolean;
+}
+
+export interface LiquidacionOSRead {
+  id: string;
+  tenant_id: string;
+  obra_social: string;
+  periodo: string;
+  estado: EstadoLiquidacionOS;
+  total: string;
+  total_reconocido?: string | null;
+  saldo_debito?: string | null;
+  observaciones?: string | null;
+  presentada_por?: string | null;
+  presentada_at?: string | null;
+  resuelta_por?: string | null;
+  resuelta_at?: string | null;
+  anulada_motivo?: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  turnos_sin_cobertura: number;
+  advertencias: string[];
+  detalles: LiquidacionOSDetalleRead[];
 }
 

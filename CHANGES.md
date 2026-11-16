@@ -428,7 +428,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-16] `frontend-agenda-clinica`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado en `openspec/changes/c-16-frontend-agenda-clinica/` (37/37 tareas; capabilities nuevas `frontend-shell-interno` y `frontend-agenda-clinica`; 12 archivos de test / 63 tests de Vitest en verde + `npm run build` (`tsc --noEmit` + `vite build` + SW) limpio; integración E2E de persistencia completa en endpoints de pacientes/HC sujeta al fix de commit de sesión documentado en `C-19`)
 - **Scope**: PWA interna — agenda + pacientes + clínica + comunicaciones
   - `features/agenda`: vista día/semana por profesional y sillón, estados, bloqueos, sobreturnos marcados, reprogramación 1-clic, reflejo en vivo de confirmaciones WA (US-001)
   - `features/pacientes`: ficha, búsqueda DNI/teléfono, opt-in WA; `features/clinica`: anamnesis/evolución, odontograma FDI interactivo, presupuestos del plan, firma de consentimiento en el acto
@@ -446,7 +446,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-17] `frontend-caja-os-admin`
-- **Estado**: `[ ]` pendiente — artefactos propuestos en `openspec/changes/c-17-frontend-caja-os-admin/` (bloqueado para apply por shell de C-16 y fix de persistencia en caja backend)
+- **Estado**: `[x]` completado en `openspec/changes/c-17-frontend-caja-os-admin/` (43/43 tareas; capabilities nuevas `frontend-caja-os` y `frontend-admin-tenant` montadas sobre el shell de `C-16`; 18 archivos de test / 89 tests de Vitest en verde + `npm run build` (`tsc --noEmit` + `vite build` + SW) limpio; persistencia E2E de mutaciones de caja en base de datos sujeta al fix de commits documentado en `C-19`; auditoría consultable y exportación 1-clic transversales corresponden a `C-14`)
 - **Scope**: PWA interna — caja/OS/admin + dashboards + polish visual final del producto
   - `features/caja`: movimientos por medio, cierre con diferencia visible, historial; `features/os`: padrón, cobertura al agendar, liquidación con débitos + export
   - `features/admin`: configuración tenant/prestaciones/precios/horarios/políticas, usuarios/roles, auditoría consultable, exportación 1-clic (US-050/051)
@@ -468,7 +468,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 > Después de C-15: sin pantallas nuevas, solo el cableado del frontend al stack para grabar el video del TP. Corre en paralelo con C-14/C-16; no está en el camino crítico.
 
 ### [C-18] `frontend-compose-demo`
-- **Estado**: `[ ]` pendiente — artefactos propuestos en `openspec/changes/c-18-frontend-compose-demo/`
+- **Estado**: `[x]` completado en `openspec/changes/c-18-frontend-compose-demo/` (17/17 tareas: servicio `frontend` en `docker-compose.yml` en `:8080`, proxy inverso `/api/` en `nginx.conf`, utilería idempotente `app.scripts.usuario_demo`, `tests/test_demo_frontend.py` y documentación en `README.md`)
 - **Propósito**: mostrar "frontend y backend levantados con el flujo implementado": `docker-compose.yml` hoy no declara el servicio `frontend` (lo admite el README) y la imagen nginx no-root ya funcionando (`src/frontend/Dockerfile.frontend` + `nginx.conf`) queda sin cablear al stack ni con reverse proxy hacia la API.
 - **Scope**: servicio frontend en compose + proxy inverso `/api` + verificación end-to-end
   - Servicio `frontend` en `docker-compose.yml` (build desde `src/frontend/Dockerfile.frontend`, healthcheck heredado, puerto `8080:80`, `depends_on: api` sano)

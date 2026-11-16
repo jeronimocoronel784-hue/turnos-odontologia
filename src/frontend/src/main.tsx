@@ -15,6 +15,20 @@ import { AgendaPage } from "./features/agenda/AgendaPage";
 import { PacientesPage, PacienteDetallePage } from "./features/pacientes/PacientesPage";
 import { FichaClinicaPage } from "./features/clinica/FichaClinicaPage";
 import { ComunicacionesPage, PlantillasPage } from "./features/comunicaciones/ComunicacionesPage";
+import { CajaPage, CierreDetallePage } from "./features/caja/CajaPage";
+import { CobroTurnoPage } from "./features/cobros/CobroTurnoPage";
+import {
+  LiquidacionesPage,
+  LiquidacionDetallePage,
+} from "./features/os/LiquidacionesPage";
+import {
+  PrestacionesPage,
+  SillonesPage,
+  CoberturasPage,
+  PoliticasPage,
+  UsuariosPage,
+} from "./features/admin/AdminPages";
+import { PanelPage } from "./features/panel/PanelPage";
 import { BannerOffline } from "./shared/BannerOffline";
 import { crearQueryClient } from "./shared/query-client";
 import "./index.css";
@@ -32,7 +46,7 @@ export const rutasApp: RouteObject[] = [
   // Login de staff
   { path: "/login", element: <LoginPage /> },
 
-  // Shell interno protegido (C-16)
+  // Shell interno protegido (C-16 + C-17)
   {
     path: "/app",
     element: <LayoutInterno />,
@@ -44,6 +58,19 @@ export const rutasApp: RouteObject[] = [
       { path: "pacientes/:id/clinica", element: <FichaClinicaPage /> },
       { path: "comunicaciones", element: <ComunicacionesPage /> },
       { path: "comunicaciones/plantillas", element: <PlantillasPage /> },
+
+      // Rutas de C-17: Caja, Cobros, Obras Sociales, Administración y Panel
+      { path: "caja", element: <CajaPage /> },
+      { path: "caja/cierres/:id", element: <CierreDetallePage /> },
+      { path: "cobros/turno/:turnoId", element: <CobroTurnoPage /> },
+      { path: "os/liquidaciones", element: <LiquidacionesPage /> },
+      { path: "os/liquidaciones/:id", element: <LiquidacionDetallePage /> },
+      { path: "admin/prestaciones", element: <PrestacionesPage /> },
+      { path: "admin/sillones", element: <SillonesPage /> },
+      { path: "admin/coberturas", element: <CoberturasPage /> },
+      { path: "admin/politicas", element: <PoliticasPage /> },
+      { path: "admin/usuarios", element: <UsuariosPage /> },
+      { path: "panel", element: <PanelPage /> },
     ],
   },
 ];

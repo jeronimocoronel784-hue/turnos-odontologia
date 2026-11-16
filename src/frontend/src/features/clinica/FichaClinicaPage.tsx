@@ -66,7 +66,7 @@ export function FichaClinicaPage() {
   const [consentimientoARevocarId, setConsentimientoARevocarId] = useState<string | null>(null);
 
   // Nuevo presupuesto
-  const [obraSocialPresupuesto, setObraSocialPresupuesto] = useState("");
+  const [obraSocialPresupuesto] = useState("");
   const [prestacionPresupuestoId, setPrestacionPresupuestoId] = useState("");
   const [piezaPresupuesto, setPiezaPresupuesto] = useState<number | undefined>(undefined);
   const [cantidadPresupuesto, setCantidadPresupuesto] = useState(1);

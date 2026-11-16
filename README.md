@@ -44,16 +44,37 @@ Servicios:
 
 | Servicio | Qué es | Puerto |
 |---|---|---|
+| `frontend` | React PWA + nginx reverse proxy (`/api` → `api:8000`) | :8080 |
 | `api` | FastAPI | :8000 |
 | `db` | PostgreSQL 15 | :5432 |
 | `redis` | Redis 7 (colas/caché) | :6379 |
 | `worker` | Worker de colas | — |
 | `mailhog` | Email transaccional en dev | :8025 (UI) / :1025 (SMTP) |
 
-> Estado del frontend: la PWA tiene imagen nginx lista en
-> `src/frontend/Dockerfile.frontend` (+ `src/frontend/nginx.conf`), pero el compose todavía no
-> declara ese servicio. Para desarrollo del front: `cd src/frontend && npm ci &&
-> npm run dev`.
+## Demo rápida con Docker Compose (Frontend + Backend)
+
+Para levantar el stack completo y recorrer el flujo público y el panel interno desde un único origen (`http://localhost:8080`, sin problemas de CORS gracias al proxy inverso `/api` en nginx):
+
+```bash
+# 1. Levantar todos los servicios (incluye build del frontend nginx no-root)
+docker compose up --build -d
+
+# 2. Aplicar migraciones
+docker compose --profile tools run --rm migrar
+
+# 3. Cargar el seed piloto 100% ficticio (tenant consultorio-piloto + catálogo)
+docker compose exec api python -m app.infrastructure.seed
+
+# 4. Crear/actualizar el usuario demo con password bcrypt propio (idempotente)
+docker compose exec -e DEMO_PASSWORD=cambiar-por-password-demo-ficticio api python -m app.scripts.usuario_demo
+```
+
+URLs de la demo:
+- **Reserva pública de turnos (sin login)**: `http://localhost:8080/reservar/consultorio-piloto`
+- **Login del panel interno**: `http://localhost:8080/login` (email `demo.piloto@example.com` y el `DEMO_PASSWORD` configurado)
+- **Healthcheck a través del proxy**: `http://localhost:8080/api/health`
+
+> Para desarrollo local de la PWA con hot-reload fuera de Docker: `cd src/frontend && npm ci && npm run dev`.
 
 ## Migraciones y seed
 

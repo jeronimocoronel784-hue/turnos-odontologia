@@ -70,6 +70,9 @@ jobs:
       - name: Instalar
         working-directory: src/frontend
         run: npm ci
+      - name: Tests unitarios e integración (vitest)
+        working-directory: src/frontend
+        run: npm run test:run
       - name: Tipos + build
         working-directory: src/frontend
         run: npm run build

@@ -24,3 +24,11 @@ globalThis.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
   }
   return OriginalFetch(input, init);
 };
+
+// Stubs seguros en jsdom para descargas blob (exportación CSV/JSON en C-17)
+if (typeof URL.createObjectURL !== "function") {
+  URL.createObjectURL = () => "blob:http://localhost/mock-download-url";
+}
+if (typeof URL.revokeObjectURL !== "function") {
+  URL.revokeObjectURL = () => {};
+}

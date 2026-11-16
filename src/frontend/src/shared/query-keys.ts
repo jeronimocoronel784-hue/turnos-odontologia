@@ -25,7 +25,7 @@ export const queryKeys = {
     presupuestos: (pacienteId: string) => ["clinica", "presupuestos", pacienteId] as const,
   },
   comunicaciones: {
-    mensajes: (filtros: { turno_id?: string; paciente_id?: string }) =>
+    mensajes: (filtros: { turno_id?: string; paciente_id?: string; estado?: string }) =>
       ["comunicaciones", "mensajes", filtros] as const,
     plantillas: ["comunicaciones", "plantillas"] as const,
   },
@@ -34,5 +34,42 @@ export const queryKeys = {
     prestaciones: ["catalogos", "prestaciones"] as const,
     sillones: ["catalogos", "sillones"] as const,
     politicas: ["catalogos", "politicas"] as const,
+  },
+  caja: {
+    movimientos: (filtros: {
+      desde?: string;
+      hasta?: string;
+      cierre_id?: string;
+      medio?: string;
+      tipo?: string;
+    }) => ["caja", "movimientos", filtros] as const,
+    cierres: (filtros?: { fecha?: string; estado?: string }) =>
+      ["caja", "cierres", filtros ?? {}] as const,
+    cierreDetalle: (id: string) => ["caja", "cierre", id] as const,
+    liquidacionTurno: (turnoId: string, obraSocial?: string) =>
+      ["caja", "liquidacionTurno", turnoId, obraSocial ?? ""] as const,
+    senas: (filtros?: { turno_id?: string; estado?: string }) =>
+      ["caja", "senas", filtros ?? {}] as const,
+  },
+  os: {
+    cobertura: (filtros: {
+      prestacion_id?: string;
+      turno_id?: string;
+      obra_social?: string;
+      fecha?: string;
+    }) => ["os", "cobertura", filtros] as const,
+    liquidaciones: (filtros?: { obra_social?: string; periodo?: string; estado?: string }) =>
+      ["os", "liquidaciones", filtros ?? {}] as const,
+    liquidacionDetalle: (id: string) => ["os", "liquidacion", id] as const,
+  },
+  admin: {
+    prestaciones: ["admin", "prestaciones"] as const,
+    sillones: ["admin", "sillones"] as const,
+    coberturas: ["admin", "coberturas"] as const,
+    politicas: ["admin", "politicas"] as const,
+    usuarios: ["admin", "usuarios"] as const,
+  },
+  panel: {
+    dia: (fecha: string) => ["panel", "dia", fecha] as const,
   },
 };

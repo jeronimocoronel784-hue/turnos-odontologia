@@ -1,4 +1,3 @@
-import React from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { getIdentidad } from "./sesion";
@@ -19,6 +18,11 @@ export function LayoutInterno() {
 
   const navItems = [
     {
+      ruta: "/app/panel",
+      etiqueta: "Panel",
+      visible: permite(roles, "agenda", "leer"),
+    },
+    {
       ruta: "/app/agenda",
       etiqueta: "Agenda",
       visible: permite(roles, "agenda", "leer"),
@@ -29,9 +33,24 @@ export function LayoutInterno() {
       visible: permite(roles, "pacientes", "leer"),
     },
     {
+      ruta: "/app/caja",
+      etiqueta: "Caja",
+      visible: permite(roles, "caja", "leer"),
+    },
+    {
+      ruta: "/app/os/liquidaciones",
+      etiqueta: "Obras Sociales",
+      visible: permite(roles, "liquidaciones", "leer"),
+    },
+    {
       ruta: "/app/comunicaciones",
       etiqueta: "Comunicaciones",
       visible: permite(roles, "mensajes", "leer"),
+    },
+    {
+      ruta: "/app/admin/prestaciones",
+      etiqueta: "Administración",
+      visible: permite(roles, "configuracion", "leer"),
     },
   ];
 
