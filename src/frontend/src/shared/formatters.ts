@@ -67,8 +67,21 @@ export function formatearFechaHora(isoString: string): string {
 export function formatearDni(valor: string): string {
   const soloNumeros = valor.replace(/\D/g, "").slice(0, 8);
   if (soloNumeros.length <= 4) return soloNumeros;
-  if (soloNumeros.length <= 7) {
+  if (soloNumeros.length <= 6) {
     return `${soloNumeros.slice(0, soloNumeros.length - 3)}.${soloNumeros.slice(-3)}`;
   }
+  if (soloNumeros.length === 7) {
+    return `${soloNumeros.slice(0, 1)}.${soloNumeros.slice(1, 4)}.${soloNumeros.slice(4)}`;
+  }
   return `${soloNumeros.slice(0, 2)}.${soloNumeros.slice(2, 5)}.${soloNumeros.slice(5)}`;
+}
+
+export function formatearDuracion(minutos: number): string {
+  if (minutos <= 0) return "0 min";
+  const hs = Math.floor(minutos / 60);
+  const minRestantes = minutos % 60;
+
+  if (hs === 0) return `${minRestantes} min`;
+  if (minRestantes === 0) return `${hs} h`;
+  return `${hs} h ${minRestantes} min`;
 }

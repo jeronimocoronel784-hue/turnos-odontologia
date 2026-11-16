@@ -80,10 +80,13 @@ Backend con **DB real en contenedor, sin mocks de DB** (R11):
 python -m pytest tests -q
 ```
 
-Frontend (tipos + build, desde `src/frontend/`):
+Frontend (tests unitarios y de componentes + tipos + build, desde `src/frontend/`):
 
 ```bash
-cd src/frontend && npm ci && npm run build
+cd src/frontend
+npm install
+npm run test:run
+npm run build
 ```
 
 Lint + tipos (mismos comandos que CI):
