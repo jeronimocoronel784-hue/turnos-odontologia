@@ -446,7 +446,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-17] `frontend-caja-os-admin`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[ ]` pendiente — artefactos propuestos en `openspec/changes/c-17-frontend-caja-os-admin/` (bloqueado para apply por shell de C-16 y fix de persistencia en caja backend)
 - **Scope**: PWA interna — caja/OS/admin + dashboards + polish visual final del producto
   - `features/caja`: movimientos por medio, cierre con diferencia visible, historial; `features/os`: padrón, cobertura al agendar, liquidación con débitos + export
   - `features/admin`: configuración tenant/prestaciones/precios/horarios/políticas, usuarios/roles, auditoría consultable, exportación 1-clic (US-050/051)
