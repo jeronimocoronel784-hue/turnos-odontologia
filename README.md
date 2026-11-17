@@ -554,8 +554,8 @@ secreto real vive en el repo.
 - [x] C-16 `frontend-agenda-clinica` (`openspec/changes/archive/2026-11-16-c-16-frontend-agenda-clinica/`): PWA interna (agenda, pacientes, clínica, comunicaciones) con guards de rol en UI; 37/37 tareas, 63 tests de Vitest.
 - [x] C-17 `frontend-caja-os-admin` (`openspec/changes/archive/2026-11-16-c-17-frontend-caja-os-admin/`): caja/OS/admin + dashboards + polish visual final; 43/43 tareas, 89 tests de Vitest.
 - [x] C-18 `frontend-compose-demo` (`openspec/changes/archive/2026-11-16-c-18-frontend-compose-demo/`): servicio `frontend` en `docker-compose.yml` con proxy inverso `/api`, usuario demo y tests de integración; 17/17 tareas.
-- [ ] C-19 `fix-commit-persistencia` (`openspec/changes/c-19-fix-commit-persistencia/`, propuesto): fix CRÍTICO de persistencia — commit en los 28 endpoints mutantes de pacientes/HC/caja/presupuestos (hoy responden `2xx` sin guardar); desbloquea la firma E2E de C-16 y C-17.
-- [ ] Pendientes: C-14 `auditoria-exportacion` (Fase 5, transversal — trail consultable + exportación 1-clic) y C-19 `fix-commit-persistencia` (fix transversal, propuesto).
+- [x] C-19 `fix-commit-persistencia` (`openspec/changes/archive/2026-11-16-c-19-fix-commit-persistencia/`): fix CRÍTICO de persistencia — commit en los 28 endpoints mutantes de pacientes/HC/caja/presupuestos; 22/22 tareas, spec `persistencia-sesiones` sincronizada (5 requisitos / 17 escenarios); desbloquea la firma E2E de C-16 y C-17.
+- [ ] Pendientes: C-14 `auditoria-exportacion` (Fase 5, transversal — trail consultable + exportación 1-clic).
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.

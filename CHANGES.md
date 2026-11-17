@@ -410,7 +410,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ---
 
 ### [C-19] `fix-commit-persistencia`
-- **Estado**: `[ ]` propuesto — artefactos listos en `openspec/changes/c-19-fix-commit-persistencia/` (4 requisitos / 12 escenarios; capability nueva `persistencia-sesiones`; pendiente de implementar)
+- **Estado**: `[x]` completado y archivado en `openspec/changes/archive/2026-11-16-c-19-fix-commit-persistencia/` (22/22 tareas; capability nueva `persistencia-sesiones` sincronizada en `openspec/specs/persistencia-sesiones/spec.md` — 5 requisitos / 17 escenarios)
 - **Scope**: fix transversal de persistencia — los routers `pacientes`, `clinica`, `caja` y `presupuestos` solo hacen `session.flush()` y nunca `session.commit()`, así que las altas/ediciones responden `2xx` pero no quedan guardadas (las cierra `deps.sesion_db` al terminar la request). `await session.commit()` en los 28 endpoints mutantes de esos 4 routers, sin cambio de contrato visible (mismos códigos/payloads), + tests de persistencia cross-sesión (≥2 casos por comportamiento, R11) y atomicidad todo-o-nada con auditoría en la misma transacción
   - Sin cambios en `deps.sesion_db`, capa `application/*`, `unit_of_work.py`, routers que ya commitean, esquema/migraciones ni frontend
   - Desbloquea la firma E2E de `C-16` (`CHANGES.md:431`) y `C-17` (`CHANGES.md:449`), hoy sujeta a este fix
