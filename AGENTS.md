@@ -71,7 +71,7 @@ Fuente de verdad del dominio. Leer antes de proponer o implementar:
 
 `C-01 foundation → C-02 modelos core → C-03 auth/RBAC → C-05 pacientes → C-06 agenda → C-09 HC/odontograma → C-11 caja/señas → C-12 Mercado Pago → C-15 reserva pública PWA`
 
-Changes activos: ninguno — `openspec list` vacío; próximo pendiente del roadmap: C-14 `auditoria-exportacion` (ver `CHANGES.md`).
+Changes activos: ninguno — `openspec list` vacío; roadmap completo (C-01..C-19, incluido C-14 `auditoria-exportacion` archivado el 2026-11-17).
 
 ## Reglas Duras (específicas del proyecto)
 

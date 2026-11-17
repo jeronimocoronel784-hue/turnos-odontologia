@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider, RouteObject } from "react-router-dom";
 import { HomePage } from "./pages/HomePage";
+import { PaginaLegalPage } from "./features/legal/PaginaLegalPage";
 import { ReservaPage } from "./features/reserva-publica/ReservaPage";
 import { MiTurnoPage } from "./features/autogestion/MiTurnoPage";
 import { PagarSenaPage } from "./features/autogestion/PagarSenaPage";
@@ -29,6 +30,7 @@ import {
   UsuariosPage,
 } from "./features/admin/AdminPages";
 import { PanelPage } from "./features/panel/PanelPage";
+import { AuditoriaPage } from "./features/auditoria/AuditoriaPage";
 import { BannerOffline } from "./shared/BannerOffline";
 import { crearQueryClient } from "./shared/query-client";
 import "./index.css";
@@ -37,6 +39,7 @@ export const rutasApp: RouteObject[] = [
   // Rutas públicas de C-15: reserva online, autogestión por token opaco y lista
   // de espera. Todas sin sesión de usuario (RN-SE-03).
   { path: "/", element: <HomePage /> },
+  { path: "/privacidad", element: <PaginaLegalPage /> },
   { path: "/reservar/:slug", element: <ReservaPage /> },
   { path: "/mis-turnos/:token", element: <MiTurnoPage /> },
   { path: "/pagar/:token", element: <PagarSenaPage /> },
@@ -71,6 +74,7 @@ export const rutasApp: RouteObject[] = [
       { path: "admin/politicas", element: <PoliticasPage /> },
       { path: "admin/usuarios", element: <UsuariosPage /> },
       { path: "panel", element: <PanelPage /> },
+      { path: "auditoria", element: <AuditoriaPage /> },
     ],
   },
 ];

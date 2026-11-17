@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     tenant_slug_default: str = Field(
         default="consultorio-piloto", description="Slug del tenant piloto"
     )
+    exportaciones_dir: str = Field(
+        default="/var/tmp/turnos-exportaciones",
+        description="Directorio de archivos de exportación (volumen compartido api/worker)",
+    )
+    exportacion_umbral_filas: int = Field(
+        default=5000,
+        ge=1,
+        description="Filas a partir de las cuales la exportación se encola como job",
+    )
 
 
 def get_settings() -> Settings:

@@ -353,9 +353,31 @@ export function PacienteDetallePage() {
   const roles = usuario?.roles || [];
   const puedeEditar = permite(roles, "pacientes", "actualizar");
   const puedeDarBaja = permite(roles, "pacientes", "borrar");
+  const puedeExportar = permite(roles, "pacientes", "exportar");
 
   const { data: paciente, isLoading, error, refetch } = usePaciente(id || "");
   const { edicion, cambiarOptin, baja } = useMutacionesPacientes();
+
+  async function handleExportarDatos() {
+    if (!id) return;
+    const token = (await import("../../shared/sesion")).getAccessToken();
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const r = await fetch(`/api/pacientes/${id}/exportar-datos`, {
+      credentials: "include",
+      headers,
+    });
+    if (!r.ok) return;
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `paciente-${id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   const [editando, setEditando] = useState(false);
   const [telefono, setTelefono] = useState("");
@@ -443,6 +465,15 @@ export function PacienteDetallePage() {
           >
             🦷 Historia Clínica y Odontograma
           </Link>
+          {puedeExportar && (
+            <button
+              type="button"
+              onClick={handleExportarDatos}
+              className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md text-sm font-medium"
+            >
+              Exportar datos del paciente
+            </button>
+          )}
           {puedeDarBaja && (
             <button
               type="button"

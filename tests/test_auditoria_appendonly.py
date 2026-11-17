@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.domain.auditoria import Auditoria
 from app.domain.tenant import Tenant
+from app.domain.usuario import RolUsuario
 from app.shared.database import create_engine_for
 
 
@@ -115,3 +116,73 @@ async def test_delete_sobre_auditoria_lo_rechaza_la_db(
         await restringida.rollback()
     finally:
         await restringida.close()
+
+
+# ---------------------------------------------------------------------------
+# 3.1 / 3.2 Inmutabilidad expuesta por la API (HTTP 405 + matriz RBAC + OpenAPI)
+# ---------------------------------------------------------------------------
+
+
+AUDITORIA_URL = "/api/auditoria"
+
+
+async def _evento_api(session, tenant) -> Auditoria:
+    import uuid as _uuid
+
+    evento = Auditoria(
+        id=_uuid.uuid4(),
+        tenant_id=tenant.id,
+        actor_id=None,
+        accion="usuario.crear",
+        entidad="usuario",
+        entidad_id="usuario-1",
+        antes=None,
+        despues={"email": "nueva@example.com"},
+    )
+    session.add(evento)
+    await session.flush()
+    await session.commit()
+    return evento
+
+
+async def test_metodos_de_escritura_sobre_auditoria_responden_405(
+    api, session, tenant_a, crear_usuario, token_para, autorizacion
+) -> None:
+    usuario = await crear_usuario(tenant_a, email="dueno-appendonly@test", rol=RolUsuario.DUENO)
+    headers = autorizacion(token_para(usuario))
+    evento = await _evento_api(session, tenant_a)
+
+    for path in (AUDITORIA_URL, f"{AUDITORIA_URL}/{evento.id}"):
+        for metodo in ("delete", "put", "patch"):
+            respuesta = await getattr(api, metodo)(path, headers=headers)
+            assert respuesta.status_code == 405, (
+                metodo,
+                path,
+                respuesta.status_code,
+                respuesta.text,
+            )
+
+    # El evento sigue existiendo tras el intento.
+    listado = await api.get(AUDITORIA_URL, headers=headers)
+    assert listado.status_code == 200, listado.text
+    ids = [e["id"] for e in listado.json()["eventos"]]
+    assert str(evento.id) in ids
+
+
+async def test_borrar_sobre_auditoria_denegado_para_todos_los_roles() -> None:
+    from app.domain.rbac import MATRIZ, Accion, Recurso, permite
+
+    for rol in ("dueno", "recepcion", "odontologo"):
+        assert permite([rol], Recurso.AUDITORIA, Accion.BORRAR) is False
+        assert Accion.BORRAR not in MATRIZ[Recurso.AUDITORIA][rol]
+
+
+def test_router_no_declara_rutas_de_escritura_en_openapi() -> None:
+    from app.main import app
+
+    paths = app.openapi().get("paths", {})
+    metodos_escritura = {"post", "put", "patch", "delete"}
+    for path, operaciones in paths.items():
+        if path == AUDITORIA_URL or path.startswith(AUDITORIA_URL + "/"):
+            solapados = metodos_escritura & set(operaciones)
+            assert not solapados, (path, solapados)

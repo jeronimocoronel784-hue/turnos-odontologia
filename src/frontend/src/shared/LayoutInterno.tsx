@@ -52,6 +52,11 @@ export function LayoutInterno() {
       etiqueta: "Administración",
       visible: permite(roles, "configuracion", "leer"),
     },
+    {
+      ruta: "/app/auditoria",
+      etiqueta: "Auditoría",
+      visible: permite(roles, "auditoria", "leer"),
+    },
   ];
 
   return (
@@ -123,6 +128,13 @@ export function LayoutInterno() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         <Outlet />
       </main>
+
+      {/* Pie */}
+      <footer className="bg-slate-900 text-slate-400 text-xs py-3 text-center">
+        <Link to="/privacidad" className="hover:text-white underline">
+          Privacidad
+        </Link>
+      </footer>
     </div>
   );
 }

@@ -14,7 +14,8 @@ export type Recurso =
   | "liquidaciones"
   | "mensajes"
   | "auditoria"
-  | "exportacion";
+  | "exportacion"
+  | "exportacion_tenant";
 
 export type Accion =
   | "leer"
@@ -33,7 +34,7 @@ const NINGUNO: readonly Accion[] = [];
 export const MATRIZ_RBAC: Record<Recurso, Record<string, readonly Accion[]>> = {
   configuracion: { dueno: CRUD, recepcion: SOLO_LECTURA, odontologo: SOLO_LECTURA },
   usuarios: { dueno: CRUD, recepcion: SOLO_LECTURA, odontologo: SOLO_LECTURA },
-  pacientes: { dueno: CRUD, recepcion: CRUD, odontologo: SOLO_LECTURA },
+  pacientes: { dueno: [...CRUD, "exportar"], recepcion: CRUD, odontologo: SOLO_LECTURA },
   agenda: {
     dueno: CRUD,
     recepcion: CRUD,
@@ -64,6 +65,11 @@ export const MATRIZ_RBAC: Record<Recurso, Record<string, readonly Accion[]>> = {
     dueno: ["exportar"],
     recepcion: ["exportar"],
     odontologo: ["exportar"],
+  },
+  exportacion_tenant: {
+    dueno: ["exportar"],
+    recepcion: NINGUNO,
+    odontologo: NINGUNO,
   },
 };
 

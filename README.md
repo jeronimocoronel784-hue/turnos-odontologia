@@ -514,6 +514,88 @@ pytest.ini / .env.example / .mcp.json / mcp_server.py / .github/workflows/ci.yml
   - Una fila por turno con `periodo`, `obra_social`, `estado`, `estado_arancel`, `turno_id`, `fecha_turno`, `prestacion`, `monto_reclamado`, `monto_reconocido` y `debito_motivo`; nunca incluye DNI, teléfono ni otros datos del paciente. Un formato distinto de `csv|json` responde `422` y no genera archivo.
   - v1 no incluye presentación electrónica ni envío del archivo a la obra social.
 
+## Auditoría y Exportación (C-14)
+
+Trail de auditoría consultable y exportación tenant-wide para el Dueño (1 consultorio, piloto mono-nodo). Sin migración de esquema (D1).
+
+### Endpoints
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| `GET` | `/api/auditoria` | Dueño | Trail filtrable y paginado (keyset). Query: `entidad`, `entidad_id`, `accion`, `actor_id`, `desde`, `hasta` (ISO-8601; sin offset se interpretan en `America/Argentina/Buenos_Aires`), `limite` (1–200, default 50) y `cursor` opaco. Orden `created_at DESC, id DESC`. `desde` inclusivo, `hasta` exclusivo; `desde > hasta` ⇒ `422`. Cursor corrupto/inválido ⇒ `422`. |
+| `GET` | `/api/auditoria/{evento_id}` | — | Solo existe para que `DELETE`/`PUT`/`PATCH` respondan `405` (inmutabilidad, R7). No expone escritura. |
+| `GET` | `/api/exportacion/{dataset}` | Dueño | Exporta un dataset en CSV o JSON. `dataset` ∈ {`agenda`, `pacientes`, `caja`, `liquidaciones`}; `formato` ∈ {`csv`, `json`} (default `csv`); `desde`/`hasta` ISO-8601. Si no hay rango, `agenda`/`caja`/`liquidaciones` usan el mes en curso en ART; `pacientes` exporta el padrón completo (ignora el rango, documentado). Si `filas ≤ EXPORTACION_UMBRAL_FILAS` (default 5000, borde `<=`) ⇒ `200` con el archivo; si supera ⇒ `202` con `ExportacionJobRead` (job asíncrono). Dataset vacío ⇒ `200` con cabecera o `[]`. Rango inválido (invertido, futuro, >366 días, fecha mal formada) ⇒ `400` (`SolicitudInvalida`). |
+| `GET` | `/api/exportacion/jobs/{job_id}` | Dueño | Estado del job (`pendiente`/`en_cola`/`procesando`/`listo`/`error`), `filas`, `expira_at`. `404` uniforme si es de otro tenant, venció, no existe o el archivo ya no está. |
+| `GET` | `/api/exportacion/jobs/{job_id}/descarga` | Dueño | Descarga el archivo si `estado=listo` (`200`). `409` si sigue pendiente/en cola/procesando o quedó en `error`. `404` uniforme si venció, es de otro tenant, no existe o el archivo ya no está. |
+| `GET` | `/api/pacientes/{paciente_id}/exportar-datos` | Dueño | Paquete JSON del paciente (identificación, turnos, ficha clínica, evoluciones, odontograma, presupuestos, consentimientos, metadata de adjuntos sin nombre de archivo, movimientos). `200` con listas vacías si no hay actividad; UUID ajeno o inexistente ⇒ mismo `404`. |
+
+Todos los endpoints de exportación y el trail son **solo Dueño** (Dueño `200`; Recepción y Odontólogo `403` con `PermisoInsuficiente`). El `tenant_id` sale siempre del token (R4); un `?tenant_id=` ajeno se ignora.
+
+### Columnas por dataset (contrato cerrado, D4)
+
+| Dataset | Filtro de filas | Columnas |
+|---|---|---|
+| `agenda` | Turnos con `inicio` en `[desde, hasta)` | `turno_id`, `inicio`, `fin`, `estado`, `prestacion`, `profesional`, `matricula`, `sillon`, `paciente_id`, `paciente_nombre`, `sobreturno` |
+| `pacientes` | Padrón completo del tenant (activos e inactivos); ignora `desde`/`hasta` | `paciente_id`, `nombre`, `dni`, `telefono`, `email`, `fecha_nac`, `obra_social`, `nro_afiliado`, `optin_wa`, `activo`, `created_at` |
+| `caja` | Movimientos con `created_at` en `[desde, hasta)` | `movimiento_id`, `created_at`, `tipo`, `concepto` (enmascarado), `medio`, `monto`, `turno_id`, `cierre_id` |
+| `liquidaciones` | Liquidaciones cuyo `periodo` cae en los meses del rango | `liquidacion_id`, `obra_social`, `periodo`, `estado`, `total`, `total_reconocido`, `turnos_sin_cobertura`, `observaciones` (enmascarada), `created_at` |
+
+`saldo_debito` **no** se exporta (campo derivado de C-13). Montos como `Decimal` serializado a string en JSON (R8). CSV UTF-8 con BOM, `,` y CRLF. Nombre de archivo: `exportacion-<dataset>-<período>-<opaco>.<ext>` (solo dataset + período + identificador opaco; nunca DNI, nombre, teléfono ni tenant, R9). `Content-Disposition` + `filename*` RFC 5987 + `Cache-Control: no-store`.
+
+### Enmascarado de PHI en textos libres (D12)
+
+`MovimientoCaja.concepto` y `LiquidacionOS.observaciones` (y cualquier texto libre de esos dos datasets) se enmascaran reemplazando por `[dato oculto]` los identificadores detectados: DNI (7/8 dígitos, con o sin puntos), CUIT/CUIL (11 dígitos, con o sin guiones) y teléfono (10–13 dígitos, con o sin `+`, espacios o guiones). Reutiliza `PATRON_DNI`/`PATRON_TELEFONO` de `app/domain/textos_libres.py` (C-13). Los datasets `pacientes`, `agenda` y el paquete clínico conservan nombres y datos (destinatario es el Dueño). Riesgo residual documentado: un nombre suelto ("Seña de Juan") no se detecta.
+
+### TTL, purga y umbral
+
+- **TTL fijo de 24 h** para jobs (hash Redis `exportacion:job:{tenant_id}:{job_id}`) y archivos en disco. No es configurable por entorno: no existe `EXPORTACION_TTL_HORAS` ni ninguna variable de TTL (decisión de mínimo necesario; configurarlo por consultorio queda como deuda).
+- **Purga**: `purgar_exportaciones_vencidas()` borra de `EXPORTACIONES_DIR` todo archivo con antigüedad mayor a 24 h. Se invoca al arrancar el worker, antes de crear cada job (API y worker) y en cada vuelta del loop del worker con throttle de 5 min. El hash de Redis expira solo. No se borra al descargar (permite reintentos dentro del TTL). Ningún archivo sobrevive más de 24 h + una vuelta de barrido.
+- **Umbral**: `EXPORTACION_UMBRAL_FILAS` (default 5000, `ge=1`). `filas ≤ umbral` ⇒ descarga directa `200`; `filas > umbral` ⇒ job `202`. Borde exacto testeado.
+- **Auditoría**: cada exportación inserta `exportacion.solicitar` (directo o asíncrono, con `job_id` en el segundo) y el paquete `paciente.exportar_datos`, sin PHI ni nombre de archivo, en la misma transacción (todo o nada: si la auditoría falla, no se entrega nada).
+
+### Desvío RBAC respecto de la KB (consulta al PO abierta)
+
+La KB (`knowledge-base/03_actores_y_roles.md:32,34`) otorga exportación **parcial** a Recepción (agenda/caja + liquidaciones de OS) y a Odontólogo (clínica propia). C-14 es **más restrictivo**: el trail (`GET /api/auditoria`), los cuatro datasets (`GET /api/exportacion/{dataset}`) y el paquete del paciente (`GET /api/pacientes/{id}/exportar-datos`) quedan **solo Dueño**; Recepción y Odontólogo reciben `403` en los tres. Desvío consciente, no un olvido:
+
+- `RN-SE-02` impone mínimo necesario y control de acceso por rol sobre datos de salud: el archivo exportado es un volcado completo del consultorio con DNI, teléfono, obra social y afiliado; el Dueño es el responsable del tratamiento.
+- El destino real de estos archivos es un tercero (contadora, abogado, obra social). Habilitar export parcial a Recepción multiplica las copias de PHI fuera del sistema sin scoping por fila en el exportador; implementarlo sería un filtrado nuevo, no un permiso.
+- El riesgo de fuga al compartir un CSV con PHI es mayor que el beneficio operativo del export parcial en el piloto de 1 consultorio.
+
+**Consecuencia si el PO habilita export parcial**: agregar scoping por actor al `SELECT` de `agenda`/`caja`/clínica, sumar datasets/roles en el guard y en `shared/rbac.ts`, reescribir los tests de la matriz de 3 roles y actualizar la fila 32 de `03_actores_y_roles.md`. El guard queda aislado en `requiere(Recurso.EXPORTACION_TENANT, Accion.EXPORTAR)` para que el rework no toque los routers. **No se edita `knowledge-base/` desde C-14**: la pregunta va al PO y el cambio de la KB lo hace el humano. `Recurso.EXPORTACION` (C-13) conserva su fila actual para no romper `GET /api/liquidaciones/{id}/exportar`.
+
+### Variables de entorno (C-14)
+
+| Variable | Default | Para qué sirve |
+|---|---|---|
+| `EXPORTACIONES_DIR` | `/var/tmp/turnos-exportaciones` | Directorio de archivos de exportación (volumen compartido `api`/`worker`). |
+| `EXPORTACION_UMBRAL_FILAS` | `5000` | Filas a partir de las cuales la exportación se encola como job (`ge=1`). |
+
+No existe variable de TTL: el vencimiento es fijo de 24 h. Verificación: `grep EXPORTACION_TTL_HORAS` no devuelve resultados en docs, `.env.example` ni settings (test en `tests/test_settings.py`).
+
+### Operación
+
+- `docker compose config` debe ser válido con el volumen `exportaciones` montado en `api` y `worker` (tarea 5.7 de montaje del volumen nombrado; verificar con `docker compose config`).
+- Sin revisión de Alembic nueva: `git status` no debe mostrar `alembic/versions/*` nuevos. Rollback: volver a la imagen anterior y quitar el volumen; los eventos de auditoría ya escritos quedan (append-only) y los jobs en Redis expiran solos.
+
+## Página legal pública (C-14, D9)
+
+Ruta pública `/privacidad` (frontend, sin sesión, sin llamada a la API), con contenido
+versionado en el repo. Se enlaza desde `HomePage` y desde el pie de `LayoutInterno`.
+
+Secciones: responsable del tratamiento, finalidad, base legal (Ley 25.326 y Ley 26.529 de HCE),
+derechos de acceso/rectificación/supresión y cómo ejercerlos, retención mínima de 5 años
+(sujeto a dictamen, PO-03 abierta), contacto, ausencia de tracking y de datos de pacientes.
+No hay PHI, ni datos de pacientes, ni llamadas de red con datos personales; no se escribe nada
+en `localStorage` (`R6`, `R9`).
+
+Variable de entorno (build-time):
+
+| Variable | Default | Para qué sirve |
+|---|---|---|
+| `VITE_CONTACTO_PRIVACIDAD` | (vacío) | Contacto mostrado en la página legal. Si no está definido, el texto remite al consultorio donde se atendió el paciente (no se inventa un email). |
+
+Revisión humana/legal pendiente de PO-03 (retención exacta) antes de publicar.
+
 ## Nota CI
 
 `.github/workflows/ci.yml` corre backend (pytest contra Postgres/Redis de
@@ -555,7 +637,7 @@ secreto real vive en el repo.
 - [x] C-17 `frontend-caja-os-admin` (`openspec/changes/archive/2026-11-16-c-17-frontend-caja-os-admin/`): caja/OS/admin + dashboards + polish visual final; 43/43 tareas, 89 tests de Vitest.
 - [x] C-18 `frontend-compose-demo` (`openspec/changes/archive/2026-11-16-c-18-frontend-compose-demo/`): servicio `frontend` en `docker-compose.yml` con proxy inverso `/api`, usuario demo y tests de integración; 17/17 tareas.
 - [x] C-19 `fix-commit-persistencia` (`openspec/changes/archive/2026-11-16-c-19-fix-commit-persistencia/`): fix CRÍTICO de persistencia — commit en los 28 endpoints mutantes de pacientes/HC/caja/presupuestos; 22/22 tareas, spec `persistencia-sesiones` sincronizada (5 requisitos / 17 escenarios); desbloquea la firma E2E de C-16 y C-17.
-- [ ] Pendientes: C-14 `auditoria-exportacion` (Fase 5, transversal — trail consultable + exportación 1-clic).
+- [x] C-14 `auditoria-exportacion` (`openspec/changes/archive/2026-11-17-c-14-auditoria-exportacion/`): trail consultable con filtros y paginación keyset (`GET /api/auditoria`, solo Dueño), exportación 1 clic de agenda/pacientes/caja/liquidaciones (sync ≤ 5000 filas, async con job + descarga sobre el umbral), paquete de datos del paciente (RN-SE-02), página pública `/privacidad` (Ley 25.326 + 26.529), enmascarado de PHI en textos libres, volumen `exportaciones` en compose. 46/49 tareas (3 bloqueadas por Docker en el entorno local: 3.3, 10.1, 10.3). Backend 687 passed / 2 failed preexistentes ambientales / 8 skipped; frontend 90 passed, build OK; ruff + mypy limpios.
 
 Roadmap completo en `CHANGES.md`; dominio en `knowledge-base/`;
 competencia en `discovery/discovery.md`.

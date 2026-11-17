@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { ApiStatus } from "../features/api-status/ApiStatus";
 
 // Página raíz: shell mínima que refleja el estado de la API (spec foundation 1.4).
@@ -9,6 +10,11 @@ export function HomePage(): JSX.Element {
         Reservá y gestioná tus turnos. Estado de la conexión:
       </p>
       <ApiStatus />
+      <p className="mt-4 text-sm">
+        <Link to="/privacidad" className="text-emerald-700 hover:underline">
+          Política de privacidad
+        </Link>
+      </p>
     </main>
   );
 }

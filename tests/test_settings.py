@@ -57,3 +57,17 @@ def test_env_example_solo_placeholders_sin_secretos() -> None:
         clave, _, valor = linea.partition("=")
         if clave.strip() in {"JWT_SECRET", "MP_ACCESS_TOKEN", "WA_API_TOKEN"}:
             pytest.fail(f"{clave} parece tener un valor real en .env.example")
+
+
+def test_no_existe_variable_de_ttl_en_settings_ni_env() -> None:
+    from app.shared.settings import Settings
+
+    # Ningún campo de settings menciona TTL configurable.
+    campos = set(Settings.model_fields.keys())
+    assert not any("ttl" in campo.lower() for campo in campos)
+    assert not any("horas" in campo.lower() for campo in campos)
+
+    raiz = Path(__file__).resolve().parents[1]
+    ejemplo = (raiz / ".env.example").read_text(encoding="utf-8")
+    assert "EXPORTACION_TTL_HORAS" not in ejemplo
+    assert "TTL_HORAS" not in ejemplo

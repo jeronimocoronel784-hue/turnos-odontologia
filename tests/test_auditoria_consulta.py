@@ -66,7 +66,9 @@ async def _dueno(
     token_para: TokenFactory,
     autorizacion: HeaderFactory,
 ) -> dict[str, str]:
-    usuario = await crear_usuario(tenant, email="dueno-auditoria@consultorio.test", rol=RolUsuario.DUENO)
+    usuario = await crear_usuario(
+        tenant, email="dueno-auditoria@consultorio.test", rol=RolUsuario.DUENO
+    )
     return autorizacion(token_para(usuario))
 
 
@@ -127,7 +129,9 @@ async def test_filtros_combinados_devuelven_solo_los_eventos_que_coinciden(
 
     assert respuesta.status_code == 200, respuesta.text
     ids = [evento["id"] for evento in respuesta.json()["eventos"]]
-    assert ids == [str(e2.id), str(e1.id)], "solo turno + actor_1 + rango, del más nuevo al más viejo"
+    assert ids == [str(e2.id), str(e1.id)], (
+        "solo turno + actor_1 + rango, del más nuevo al más viejo"
+    )
 
 
 async def test_paginacion_keyset_sin_duplicados_ni_huecos(
@@ -181,9 +185,7 @@ async def test_paginacion_keyset_con_created_at_empatados(
     headers = await _dueno(crear_usuario, tenant_a, token_para, autorizacion)
     mismo_momento = datetime(2026, 11, 5, 9, 30, tzinfo=UTC)
     eventos = [
-        await _evento(
-            session, tenant_a, entidad_id=f"turno-{i}", created_at=mismo_momento
-        )
+        await _evento(session, tenant_a, entidad_id=f"turno-{i}", created_at=mismo_momento)
         for i in range(3)
     ]
     esperado = [str(e.id) for e in sorted(eventos, key=lambda e: e.id, reverse=True)]
@@ -307,7 +309,10 @@ async def test_matriz_de_roles_sobre_el_trail(
 ) -> None:
     usuario = await crear_usuario(tenant_a, email=f"{rol.value}-trail@consultorio.test", rol=rol)
     await _evento(
-        session, tenant_a, created_at=datetime(2026, 11, 7, 9, 0, tzinfo=UTC), despues={"estado": "x"}
+        session,
+        tenant_a,
+        created_at=datetime(2026, 11, 7, 9, 0, tzinfo=UTC),
+        despues={"estado": "x"},
     )
 
     respuesta = await api.get(URL, headers=autorizacion(token_para(usuario)))
@@ -379,6 +384,44 @@ async def test_tres_caminos_por_tres_roles(
     """
     usuario = await crear_usuario(tenant_a, email=f"{rol.value}-caminos@consultorio.test", rol=rol)
     headers = autorizacion(token_para(usuario))
+    await _evento(
+        session,
+        tenant_a,
+        created_at=datetime(2026, 11, 7, 9, 0, tzinfo=UTC),
+        despues={"estado": "x"},
+    )
+
+    trail = await api.get(URL, headers=headers)
+
+    assert trail.status_code == esperado, trail.text
+    if esperado == 403:
+        assert "dueño" in trail.json()["detail"]
+        assert "eventos" not in trail.json()
+    else:
+        assert len(trail.json()["eventos"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("rol", "esperado"),
+    [(RolUsuario.DUENO, 200), (RolUsuario.RECEPCION, 403), (RolUsuario.ODONTOLOGO, 403)],
+)
+async def test_tres_caminos_por_tres_roles_datasets_y_paquete(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    tenant_a: Tenant,
+    crear_usuario: ActorFactory,
+    token_para: TokenFactory,
+    autorizacion: HeaderFactory,
+    rol: RolUsuario,
+    esperado: int,
+) -> None:
+    """Datasets (4 × CSV/JSON) y paquete del paciente: solo Dueño (desvío KB 32,34).
+
+    Consulta abierta al PO del design: si habilita exportación parcial, este test y el
+    guard `requiere(Recurso.EXPORTACION_TENANT, Accion.EXPORTAR)` son el punto de rework.
+    """
+    usuario = await crear_usuario(tenant_a, email=f"{rol.value}-caminos2@consultorio.test", rol=rol)
+    headers = autorizacion(token_para(usuario))
     paciente = Paciente(
         id=uuid.uuid4(),
         tenant_id=tenant_a.id,
@@ -391,14 +434,21 @@ async def test_tres_caminos_por_tres_roles(
     session.add(paciente)
     await session.flush()
 
-    trail = await api.get(URL, headers=headers)
-    agenda = await api.get("/api/exportacion/agenda", headers=headers, params={"formato": "csv"})
-    paquete = await api.get(f"/api/pacientes/{paciente.id}/exportar-datos", headers=headers)
+    for dataset in ("agenda", "pacientes", "caja", "liquidaciones"):
+        for formato in ("csv", "json"):
+            resp = await api.get(
+                f"/api/exportacion/{dataset}",
+                headers=headers,
+                params={"formato": formato},
+            )
+            assert resp.status_code == esperado, resp.text
+            if esperado == 403:
+                assert "dueño" in resp.json()["detail"]
 
-    for respuesta in (trail, agenda, paquete):
-        assert respuesta.status_code == esperado, respuesta.text
-        if esperado == 403:
-            assert "dueño" in respuesta.json()["detail"]
+    paquete = await api.get(f"/api/pacientes/{paciente.id}/exportar-datos", headers=headers)
+    assert paquete.status_code == esperado, paquete.text
+    if esperado == 403:
+        assert "dueño" in paquete.json()["detail"]
 
 
 async def test_periodo_por_defecto_no_depende_de_la_hora_del_cliente(
@@ -411,16 +461,15 @@ async def test_periodo_por_defecto_no_depende_de_la_hora_del_cliente(
 ) -> None:
     """El nombre del archivo directo refleja el mes en curso calculado en servidor (D4)."""
     headers = await _dueno(crear_usuario, tenant_a, token_para, autorizacion)
-    await _evento(
-        session, tenant_a, created_at=datetime.now(UTC) - timedelta(minutes=1)
-    )
+    await _evento(session, tenant_a, created_at=datetime.now(UTC) - timedelta(minutes=1))
 
     respuesta = await api.get("/api/exportacion/agenda", headers=headers)
 
     assert respuesta.status_code == 200, respuesta.text
     nombre = respuesta.headers["content-disposition"].split('filename="')[1].split('"')[0]
-    esperado = datetime.now(UTC).astimezone(_zona_art()).strftime("%Y%m%d")
-    assert f"-{esperado}-" in nombre
+    hoy = datetime.now(UTC).astimezone(_zona_art())
+    inicio_mes = hoy.replace(day=1).date().strftime("%Y%m%d")
+    assert f"-{inicio_mes}_" in nombre
 
 
 def _zona_art():

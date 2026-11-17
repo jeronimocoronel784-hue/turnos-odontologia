@@ -8,15 +8,18 @@ Cumple:
 - RBAC: Recurso.PACIENTES (Dueño/Recepción: CRUD, Odontólogo: Lectura).
 """
 
+import json
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api import deps
+from app.api.schemas_paciente_exportacion import PacienteExportacionRead
 from app.api.schemas_pacientes import (
     PacienteCreate,
     PacienteOptinUpdate,
@@ -26,10 +29,11 @@ from app.api.schemas_pacientes import (
 )
 from app.api.security import ActorAutenticado, requiere
 from app.application.auditoria import registrar_auditoria
+from app.application.pacientes import exportar_datos_paciente
 from app.domain.ficha_clinica import FichaClinica
 from app.domain.paciente import Paciente
 from app.domain.rbac import Accion, Recurso
-from app.shared.exceptions import Conflicto, NoEncontrado
+from app.shared.exceptions import AppError, Conflicto, NoEncontrado
 
 router = APIRouter(prefix="/pacientes", tags=["pacientes"])
 
@@ -280,3 +284,47 @@ async def actualizar_optin_whatsapp(
     await session.commit()
 
     return paciente
+
+
+@router.get(
+    "/{paciente_id}/exportar-datos",
+    response_class=Response,
+    response_model=PacienteExportacionRead,
+    responses={
+        200: {"description": "Paquete de datos del paciente (JSON)."},
+        403: {"description": "Permiso insuficiente."},
+        404: {"description": "Paciente no encontrado."},
+        500: {"description": "Error interno."},
+    },
+)
+async def get_exportar_datos_paciente(
+    paciente_id: uuid.UUID,
+    actor: Annotated[ActorAutenticado, Depends(requiere(Recurso.PACIENTES, Accion.EXPORTAR))],
+    session: Annotated[AsyncSession, Depends(deps.sesion_db)],
+) -> Response:
+    try:
+        paquete = await exportar_datos_paciente(
+            session,
+            tenant_id=actor.tenant_id,
+            paciente_id=paciente_id,
+            actor_id=actor.usuario_id,
+        )
+    except Exception as exc:
+        await session.rollback()
+        if isinstance(exc, AppError):
+            raise
+        raise AppError(
+            "¡Uh! Algo salió mal de nuestro lado. Probá de nuevo en un rato.", status_code=500
+        ) from exc
+    await session.commit()
+
+    contenido = json.dumps(paquete, ensure_ascii=False, default=str).encode("utf-8")
+    nombre = f"paciente-{paciente_id}-{datetime.now(UTC).date().isoformat()}.json"
+    from urllib.parse import quote
+
+    cd = f"attachment; filename=\"{nombre}\"; filename*=UTF-8''{quote(nombre, safe='')}"
+    return Response(
+        content=contenido,
+        media_type="application/json",
+        headers={"Content-Disposition": cd, "Cache-Control": "no-store"},
+    )

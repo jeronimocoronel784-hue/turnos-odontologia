@@ -48,10 +48,12 @@ from app.api import deps
 from app.api.routers import (
     admin_catalogo,
     agenda,
+    auditoria,
     auth,
     caja,
     clinica,
     comunicaciones,
+    exportacion,
     liquidaciones,
     lista_espera,
     pacientes,
@@ -223,6 +225,7 @@ async def api(
     """Cliente HTTP contra los routers reales de auth, usuarios y catálogo."""
     app = app_factory(
         auth.router,
+        auditoria.router,
         usuarios.router,
         admin_catalogo.router,
         pacientes.router,
@@ -230,6 +233,7 @@ async def api(
         agenda.router,
         caja.router,
         clinica.router,
+        exportacion.router,
         clinica.router_publico_firma,
         comunicaciones.router,
         comunicaciones.router_webhook,

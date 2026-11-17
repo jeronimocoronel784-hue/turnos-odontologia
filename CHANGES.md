@@ -391,7 +391,7 @@ Paso │ Agente A (Backend Core) │ Agente B (Backend Aux)  │ Agente C (Diner
 ## FASE 5 — Transversal
 
 ### [C-14] `auditoria-exportacion`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado y archivado en `openspec/changes/archive/2026-11-17-c-14-auditoria-exportacion/` (46/49 tareas; 3 bloqueadas por Docker en el entorno local: 3.3, 10.1, 10.3. Specs sincronizadas: `auditoria-exportacion` (nueva) + delta `pacientes`. Backend: 687 passed / 2 failed preexistentes ambientales / 8 skipped; frontend: 90 passed, build OK; ruff + mypy limpios. Desvío RBAC respecto de `03_actores_y_roles.md:32,34` documentado en el design: exportación solo Dueño, con consulta al PO abierta.)
 - **Scope**: Trail consultable + exportación 1-clic + página legal (Flujo 7)
   - `GET /api/auditoria` (filtros entidad/período/actor, solo Dueño) sobre tabla append-only
   - Exportación CSV/JSON de agenda, pacientes, caja, liquidaciones en 1 clic; job asíncrono con descarga si el volumen es grande

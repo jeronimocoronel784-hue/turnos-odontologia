@@ -27,7 +27,7 @@ ODONTOLOGO = RolUsuario.ODONTOLOGO.value
 ESPERADO: dict[Recurso, dict[str, frozenset[Accion]]] = {
     Recurso.CONFIGURACION: {DUENO: CRUD, RECEPCION: R, ODONTOLOGO: R},
     Recurso.USUARIOS: {DUENO: CRUD, RECEPCION: R, ODONTOLOGO: R},
-    Recurso.PACIENTES: {DUENO: CRUD, RECEPCION: CRUD, ODONTOLOGO: R},
+    Recurso.PACIENTES: {DUENO: frozenset({*CRUD, Accion.EXPORTAR}), RECEPCION: CRUD, ODONTOLOGO: R},
     Recurso.AGENDA: {
         DUENO: CRUD,
         RECEPCION: CRUD,
@@ -59,6 +59,11 @@ ESPERADO: dict[Recurso, dict[str, frozenset[Accion]]] = {
         DUENO: frozenset({Accion.EXPORTAR}),
         RECEPCION: frozenset({Accion.EXPORTAR}),
         ODONTOLOGO: frozenset({Accion.EXPORTAR}),
+    },
+    Recurso.EXPORTACION_TENANT: {
+        DUENO: frozenset({Accion.EXPORTAR}),
+        RECEPCION: N,
+        ODONTOLOGO: N,
     },
 }
 

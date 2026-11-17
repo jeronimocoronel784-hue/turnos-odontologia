@@ -63,10 +63,32 @@ describe("shared/rbac - Matriz de permisos (C-16 + C-17)", () => {
       "liquidaciones",
       "configuracion",
       "usuarios",
+      "auditoria",
+      "exportacion",
+      "exportacion_tenant",
     ] as const;
 
     recursosEsperados.forEach((recurso) => {
       expect(MATRIZ_RBAC[recurso]).toBeDefined();
     });
+  });
+
+  it("C-14: auditoria solo lectura para Dueño; exportacion_tenant y pacientes.exportar solo Dueño", () => {
+    const dueno: RolUsuario[] = ["dueno"];
+    const recepcion: RolUsuario[] = ["recepcion"];
+    const odontologo: RolUsuario[] = ["odontologo"];
+
+    expect(permite(dueno, "auditoria", "leer")).toBe(true);
+    expect(permite(dueno, "auditoria", "crear")).toBe(false);
+    expect(permite(recepcion, "auditoria", "leer")).toBe(false);
+    expect(permite(odontologo, "auditoria", "leer")).toBe(false);
+
+    expect(permite(dueno, "exportacion_tenant", "exportar")).toBe(true);
+    expect(permite(recepcion, "exportacion_tenant", "exportar")).toBe(false);
+    expect(permite(odontologo, "exportacion_tenant", "exportar")).toBe(false);
+
+    expect(permite(dueno, "pacientes", "exportar")).toBe(true);
+    expect(permite(recepcion, "pacientes", "exportar")).toBe(false);
+    expect(permite(odontologo, "pacientes", "exportar")).toBe(false);
   });
 });

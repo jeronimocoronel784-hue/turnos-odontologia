@@ -41,8 +41,11 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
       FRONT_URL: http://localhost:8080
+      EXPORTACIONES_DIR: /var/tmp/turnos-exportaciones
     ports:
       - "8000:8000"
+    volumes:
+      - exportaciones:/var/tmp/turnos-exportaciones
     depends_on:
       db:
         condition: service_healthy
@@ -70,11 +73,14 @@ services:
       DATABASE_URL: postgresql+asyncpg://turnos_app:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-turnos}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env}
+      EXPORTACIONES_DIR: /var/tmp/turnos-exportaciones
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - exportaciones:/var/tmp/turnos-exportaciones
 
   migrar:
     build:
@@ -97,3 +103,4 @@ services:
 
 volumes:
   pgdata:
+  exportaciones:

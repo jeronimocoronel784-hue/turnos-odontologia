@@ -6,10 +6,12 @@ paquete `tzdata` esa zona no existe, así que se usa el offset fijo histórico
 (UTC-3, sin horario de verano en Argentina desde 2009).
 """
 
-from datetime import timedelta, timezone
+from datetime import timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ART = "America/Argentina/Buenos_Aires"
+
+ZONA_ART: tzinfo
 
 try:  # pragma: no cover - depende del entorno, no del código
     ZONA_ART = ZoneInfo(ART)

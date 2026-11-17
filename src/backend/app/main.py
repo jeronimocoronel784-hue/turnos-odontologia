@@ -5,10 +5,12 @@ from fastapi import FastAPI
 from app.api.routers import (
     admin_catalogo,
     agenda,
+    auditoria,
     auth,
     caja,
     clinica,
     comunicaciones,
+    exportacion,
     health,
     liquidaciones,
     lista_espera,
@@ -24,6 +26,7 @@ app = FastAPI(title="Turnos Odontología", version="0.1.0")
 register_handlers(app)
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(auditoria.router, prefix="/api")
 app.include_router(usuarios.router, prefix="/api")
 app.include_router(admin_catalogo.router, prefix="/api")
 app.include_router(pacientes.router, prefix="/api")
@@ -32,6 +35,7 @@ app.include_router(agenda.router, prefix="/api")
 app.include_router(caja.router, prefix="/api")
 app.include_router(clinica.router, prefix="/api")
 app.include_router(liquidaciones.router, prefix="/api")
+app.include_router(exportacion.router, prefix="/api")
 app.include_router(clinica.router_publico_firma)
 app.include_router(clinica.router_publico_firma, prefix="/api")
 app.include_router(lista_espera.router, prefix="/api")

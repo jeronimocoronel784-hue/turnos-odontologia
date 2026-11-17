@@ -26,6 +26,7 @@ class Recurso(enum.StrEnum):
     MENSAJES = "mensajes"
     AUDITORIA = "auditoria"
     EXPORTACION = "exportacion"
+    EXPORTACION_TENANT = "exportacion_tenant"
 
 
 class Accion(enum.StrEnum):
@@ -59,7 +60,11 @@ def _matriz() -> dict[Recurso, dict[str, frozenset[Accion]]]:
     return {
         Recurso.CONFIGURACION: {dueno: CRUD, recepcion: SOLO_LECTURA, odontologo: SOLO_LECTURA},
         Recurso.USUARIOS: {dueno: CRUD, recepcion: SOLO_LECTURA, odontologo: SOLO_LECTURA},
-        Recurso.PACIENTES: {dueno: CRUD, recepcion: CRUD, odontologo: SOLO_LECTURA},
+        Recurso.PACIENTES: {
+            dueno: _permisos(*CRUD, Accion.EXPORTAR),
+            recepcion: CRUD,
+            odontologo: SOLO_LECTURA,
+        },
         Recurso.AGENDA: {
             dueno: CRUD,
             recepcion: CRUD,
@@ -91,6 +96,11 @@ def _matriz() -> dict[Recurso, dict[str, frozenset[Accion]]]:
             dueno: _permisos(Accion.EXPORTAR),
             recepcion: _permisos(Accion.EXPORTAR),
             odontologo: _permisos(Accion.EXPORTAR),
+        },
+        Recurso.EXPORTACION_TENANT: {
+            dueno: _permisos(Accion.EXPORTAR),
+            recepcion: NINGUNO,
+            odontologo: NINGUNO,
         },
     }
 

@@ -241,3 +241,25 @@ async def test_patch_optin_wa_y_baja_stop(
     assert len(eventos) == 2
     assert eventos[0].despues["optin_wa"] is True
     assert eventos[1].despues["optin_wa"] is False
+
+
+async def test_exportar_datos_paciente_endpoint_documentado(
+    api: httpx.AsyncClient,
+    tenant_a: Tenant,
+    crear_usuario: Callable[..., Awaitable[Usuario]],
+    token_para: Callable[..., str],
+    autorizacion: Callable[[str], dict[str, str]],
+) -> None:
+    dueno = await crear_usuario(tenant_a, email="dueno_exp@test.com", rol=RolUsuario.DUENO)
+    headers = autorizacion(token_para(dueno))
+    paciente_resp = await api.post(
+        "/api/pacientes",
+        json={"nombre": "Para Exportar", "dni": "77788899", "telefono": "1122334455"},
+        headers=headers,
+    )
+    assert paciente_resp.status_code == 201
+    paciente_id = paciente_resp.json()["id"]
+    resp = await api.get(f"/api/pacientes/{paciente_id}/exportar-datos", headers=headers)
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-store"
+    assert "content-disposition" in resp.headers
