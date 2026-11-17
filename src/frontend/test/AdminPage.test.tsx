@@ -43,7 +43,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
 
     const { restaurar } = mockFetchDoble([
       {
-        ruta: "/api/prestaciones",
+        ruta: "/api/admin/prestaciones",
         metodo: "GET",
         status: 200,
         body: [
@@ -63,7 +63,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
         ],
       },
       {
-        ruta: "/api/prestaciones",
+        ruta: "/api/admin/prestaciones",
         metodo: "POST",
         status: 201,
         body: {
@@ -84,7 +84,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
         },
       },
       {
-        ruta: "/api/prestaciones/pres-1",
+        ruta: "/api/admin/prestaciones/pres-1",
         metodo: "DELETE",
         status: 200,
         body: {
@@ -140,7 +140,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
 
     const { restaurar } = mockFetchDoble([
       {
-        ruta: "/api/sillones",
+        ruta: "/api/admin/sillones",
         metodo: "GET",
         status: 200,
         body: [
@@ -156,7 +156,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
         ],
       },
       {
-        ruta: "/api/sillones/sil-1",
+        ruta: "/api/admin/sillones/sil-1",
         metodo: "DELETE",
         status: 200,
         body: {
@@ -170,7 +170,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
         },
       },
       {
-        ruta: "/api/coberturas",
+        ruta: "/api/admin/coberturas",
         metodo: "GET",
         status: 200,
         body: [],
@@ -211,7 +211,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
 
     const { restaurar } = mockFetchDoble([
       {
-        ruta: "/api/tenant/politicas",
+        ruta: "/api/admin/tenant/politicas",
         metodo: "GET",
         status: 200,
         body: {
@@ -221,7 +221,7 @@ describe("features/admin - Prestaciones, Sillones, Coberturas, Políticas y Usua
         },
       },
       {
-        ruta: "/api/tenant/politicas",
+        ruta: "/api/admin/tenant/politicas",
         metodo: "PATCH",
         status: 200,
         body: {

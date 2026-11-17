@@ -33,7 +33,7 @@ describe("features/agenda/AgendaPage", () => {
       ],
     },
     {
-      ruta: "/api/prestaciones",
+      ruta: "/api/admin/prestaciones",
       metodo: "GET",
       status: 200,
       body: [
@@ -51,7 +51,7 @@ describe("features/agenda/AgendaPage", () => {
       ],
     },
     {
-      ruta: "/api/sillones",
+      ruta: "/api/admin/sillones",
       metodo: "GET",
       status: 200,
       body: [
@@ -65,7 +65,7 @@ describe("features/agenda/AgendaPage", () => {
       ],
     },
     {
-      ruta: "/api/tenant/politicas",
+      ruta: "/api/admin/tenant/politicas",
       metodo: "GET",
       status: 200,
       body: {

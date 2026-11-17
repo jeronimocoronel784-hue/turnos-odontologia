@@ -74,7 +74,7 @@ export async function eliminarBloqueo(bloqueoId: string): Promise<void> {
 }
 
 export async function obtenerPoliticas(): Promise<PoliticasRead> {
-  return apiFetch<PoliticasRead>("/api/tenant/politicas");
+  return apiFetch<PoliticasRead>("/api/admin/tenant/politicas");
 }
 
 export async function obtenerProfesionales(): Promise<UsuarioRead[]> {
@@ -83,12 +83,12 @@ export async function obtenerProfesionales(): Promise<UsuarioRead[]> {
 }
 
 export async function obtenerPrestaciones(): Promise<PrestacionRead[]> {
-  const lista = await apiFetch<PrestacionRead[]>("/api/prestaciones");
+  const lista = await apiFetch<PrestacionRead[]>("/api/admin/prestaciones");
   return lista.filter((p) => p.activa);
 }
 
 export async function obtenerSillones(): Promise<SillonRead[]> {
-  const lista = await apiFetch<SillonRead[]>("/api/sillones");
+  const lista = await apiFetch<SillonRead[]>("/api/admin/sillones");
   return lista.filter((s) => s.activo);
 }
 
