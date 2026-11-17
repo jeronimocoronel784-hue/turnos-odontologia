@@ -79,13 +79,15 @@ async def put_ficha_paciente(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> FichaClinica:
     """Actualiza la ficha clínica (solo rol clínico) y genera Evolucion + Auditoria."""
-    return await actualizar_ficha_clinica(
+    ficha = await actualizar_ficha_clinica(
         session,
         tenant_id=actor.tenant_id,
         paciente_id=paciente_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return ficha
 
 
 @router.get("/pacientes/{paciente_id}/evoluciones", response_model=list[EvolucionRead])
@@ -114,13 +116,15 @@ async def post_evolucion_paciente(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> Evolucion:
     """Registra una evolución clínica append-only o una enmienda aditiva (solo rol clínico)."""
-    return await crear_evolucion(
+    evolucion = await crear_evolucion(
         session,
         tenant_id=actor.tenant_id,
         paciente_id=paciente_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return evolucion
 
 
 @router.get("/pacientes/{paciente_id}/adjuntos", response_model=list[AdjuntoRead])
@@ -149,13 +153,15 @@ async def post_adjunto_paciente(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> AdjuntoClinico:
     """Registra metadatos de un adjunto clínico (RX, foto, PDF) en la HCE del paciente."""
-    return await crear_adjunto_clinico(
+    adjunto = await crear_adjunto_clinico(
         session,
         tenant_id=actor.tenant_id,
         paciente_id=paciente_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return adjunto
 
 
 @router.get("/odontograma/{paciente_id}", response_model=OdontogramaRead)
@@ -184,13 +190,15 @@ async def post_evento_odontograma(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PiezaEvento:
     """Registra un evento inmutable sobre una pieza y superficie del odontograma FDI (RN-CL-01)."""
-    return await registrar_evento_pieza(
+    evento = await registrar_evento_pieza(
         session,
         tenant_id=actor.tenant_id,
         paciente_id=paciente_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    await session.commit()
+    return evento
 
 
 @router.get(
@@ -245,6 +253,8 @@ async def post_consentimiento(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     lectura = ConsentimientoRead.model_validate(cons)
     lectura.token_firma = token_firma
     return lectura
@@ -260,13 +270,16 @@ async def post_firmar_consentimiento(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> Consentimiento:
     """Registra la firma presencial de un consentimiento informado."""
-    return await firmar_consentimiento(
+    consentimiento = await firmar_consentimiento(
         session,
         tenant_id=actor.tenant_id,
         consentimiento_id=consentimiento_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return consentimiento
 
 
 @router.post("/consentimientos/{consentimiento_id}/revocar", response_model=ConsentimientoRead)
@@ -279,13 +292,16 @@ async def post_revocar_consentimiento(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> Consentimiento:
     """Revoca un consentimiento informado dejando registro en Auditoria (RN-CL-02)."""
-    return await revocar_consentimiento(
+    consentimiento = await revocar_consentimiento(
         session,
         tenant_id=actor.tenant_id,
         consentimiento_id=consentimiento_id,
         motivo=datos.motivo,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return consentimiento
 
 
 @router_publico_firma.get("/{token}", response_model=ConsentimientoPublicoRead)
@@ -304,4 +320,7 @@ async def post_firmar_consentimiento_publico(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> Consentimiento:
     """Firma el consentimiento informado mediante su token_gestion público (`/firmar/{token}`)."""
-    return await firmar_consentimiento_por_token(session, token=token, datos=datos)
+    consentimiento = await firmar_consentimiento_por_token(session, token=token, datos=datos)
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return consentimiento

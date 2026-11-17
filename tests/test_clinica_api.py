@@ -7,6 +7,7 @@ Verifica:
    y pasa (200) tras firmar en GET/POST /firmar/{token}.
 """
 
+import asyncio
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -133,6 +134,9 @@ async def test_rbac_recepcion_solo_lectura_y_odontologo_edita_hc_y_odontograma(
     )
     assert r_pe1.status_code == 201
 
+    # C-19 (nota): el reloj de Windows avanza en pasos de ~15 ms; sin esta pausa los
+    # `created_at` de los dos eventos empatan y el desempate por `id` vuelve flaky la proyección.
+    await asyncio.sleep(0.05)
     r_pe2 = await api.post(
         f"/api/odontograma/{paciente.id}/eventos",
         headers=headers_odonto,

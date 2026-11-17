@@ -89,6 +89,8 @@ async def post_sena(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return SenaRead.model_validate(sena)
 
 
@@ -118,6 +120,8 @@ async def post_cobrar_sena(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return SenaRead.model_validate(sena)
 
 
@@ -136,6 +140,8 @@ async def post_resolver_sena_cancelacion(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return SenaRead.model_validate(sena)
 
 
@@ -152,6 +158,8 @@ async def post_vencer_sena(
         sena_id=sena_id,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return SenaRead.model_validate(sena)
 
 
@@ -196,6 +204,8 @@ async def post_movimiento(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return MovimientoCajaRead.model_validate(movimiento)
 
 
@@ -238,6 +248,8 @@ async def post_abrir_cierre(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return CierreCajaRead.model_validate(cierre)
 
 
@@ -267,6 +279,8 @@ async def post_cerrar_caja(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return CierreCajaRead.model_validate(cierre)
 
 
@@ -285,6 +299,8 @@ async def post_reabrir_caja(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return CierreCajaRead.model_validate(cierre)
 
 
@@ -328,4 +344,6 @@ async def post_cobrar_turno(
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
     return MovimientoCajaRead.model_validate(movimiento)

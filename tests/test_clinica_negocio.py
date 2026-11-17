@@ -6,6 +6,7 @@ Verifica:
 3. Prestación invasiva bloquea transición a 'presente' sin consentimiento firmado (RN-CL-02).
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -202,6 +203,9 @@ async def test_odontograma_fdi_proyeccion_e_historial_inmutable(
         ),
         actor_id=odontologo.id,
     )
+    # C-19 (nota): el reloj de Windows avanza en pasos de ~15 ms, así que sin esta pausa los
+    # `created_at` de ev1/ev2 empatan y el desempate por `id` (uuid4) vuelve el test flaky.
+    await asyncio.sleep(0.05)
     ev2 = await registrar_evento_pieza(
         session,
         tenant_id=tenant_a.id,

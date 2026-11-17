@@ -60,12 +60,15 @@ async def post_presupuesto(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PresupuestoRead:
     """Crea un presupuesto calculando sus items y cobertura OS en servidor (RN-OS-01, R8)."""
-    return await crear_presupuesto(
+    presupuesto = await crear_presupuesto(
         session,
         tenant_id=actor.tenant_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return presupuesto
 
 
 @router.get("/{presupuesto_id}", response_model=PresupuestoRead)
@@ -94,13 +97,16 @@ async def post_item_presupuesto(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PresupuestoRead:
     """Agrega un item a un presupuesto y recalcula sus totales en servidor."""
-    return await agregar_item_presupuesto(
+    presupuesto = await agregar_item_presupuesto(
         session,
         tenant_id=actor.tenant_id,
         presupuesto_id=presupuesto_id,
         item_input=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return presupuesto
 
 
 @router.post("/{presupuesto_id}/presentar", response_model=PresupuestoRead)
@@ -110,13 +116,16 @@ async def post_presentar_presupuesto(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PresupuestoRead:
     """Pasa un presupuesto en borrador a estado presentado."""
-    return await cambiar_estado_presupuesto(
+    presupuesto = await cambiar_estado_presupuesto(
         session,
         tenant_id=actor.tenant_id,
         presupuesto_id=presupuesto_id,
         nuevo_estado=EstadoPresupuesto.PRESENTADO,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return presupuesto
 
 
 @router.post("/{presupuesto_id}/aceptar", response_model=PresupuestoRead)
@@ -126,12 +135,15 @@ async def post_aceptar_presupuesto(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PresupuestoRead:
     """Acepta un presupuesto verificando consentimiento en prestaciones invasivas (RN-CL-04)."""
-    return await aceptar_presupuesto(
+    presupuesto = await aceptar_presupuesto(
         session,
         tenant_id=actor.tenant_id,
         presupuesto_id=presupuesto_id,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return presupuesto
 
 
 @router.post("/{presupuesto_id}/rechazar", response_model=PresupuestoRead)
@@ -141,13 +153,16 @@ async def post_rechazar_presupuesto(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PresupuestoRead:
     """Marca un presupuesto como rechazado."""
-    return await cambiar_estado_presupuesto(
+    presupuesto = await cambiar_estado_presupuesto(
         session,
         tenant_id=actor.tenant_id,
         presupuesto_id=presupuesto_id,
         nuevo_estado=EstadoPresupuesto.RECHAZADO,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return presupuesto
 
 
 @router.post("/{presupuesto_id}/finalizar", response_model=PresupuestoRead)
@@ -157,13 +172,16 @@ async def post_finalizar_presupuesto(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PresupuestoRead:
     """Marca un plan de tratamiento como finalizado."""
-    return await cambiar_estado_presupuesto(
+    presupuesto = await cambiar_estado_presupuesto(
         session,
         tenant_id=actor.tenant_id,
         presupuesto_id=presupuesto_id,
         nuevo_estado=EstadoPresupuesto.FINALIZADO,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return presupuesto
 
 
 @router.get("/{presupuesto_id}/turnos", response_model=list[PresupuestoTurnoRead])
@@ -192,10 +210,13 @@ async def post_turno_presupuesto(
     session: Annotated[AsyncSession, Depends(deps.sesion_db)],
 ) -> PresupuestoTurno:
     """Vincula un turno al plan de tratamiento y pasa el presupuesto a en_curso (US-022)."""
-    return await vincular_turno_a_presupuesto(
+    vinculo = await vincular_turno_a_presupuesto(
         session,
         tenant_id=actor.tenant_id,
         presupuesto_id=presupuesto_id,
         datos=datos,
         actor_id=actor.usuario_id,
     )
+    # C-19 (D1): commit al final de la rama que muta, tras auditar.
+    await session.commit()
+    return vinculo

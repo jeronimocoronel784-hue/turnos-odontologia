@@ -147,6 +147,7 @@ async def crear_paciente(
             "activo": nuevo_paciente.activo,
         },
     )
+    await session.commit()
 
     nuevo_paciente.ficha_clinica = ficha
     return nuevo_paciente
@@ -195,6 +196,7 @@ async def actualizar_paciente(
         antes=antes,
         despues=despues,
     )
+    await session.commit()
 
     return paciente
 
@@ -235,6 +237,7 @@ async def dar_de_baja_paciente(
         antes=antes_baja,
         despues=despues_baja,
     )
+    await session.commit()
 
     return paciente
 
@@ -274,5 +277,6 @@ async def actualizar_optin_whatsapp(
         antes=antes_dict,
         despues=despues_dict,
     )
+    await session.commit()
 
     return paciente
