@@ -39,7 +39,7 @@ C-01 foundation-setup
           └── C-16 frontend-agenda-clinica (+ C-08, C-10)
 ```
 
-> **Nota de realidad (2026-11-16)**: C-17 está completado y archivado (`openspec/changes/archive/2026-11-16-c-17-frontend-caja-os-admin/`) aunque C-14 sigue `[ ]`: la dependencia de C-14 (auditoría consultable + exportación 1-clic) queda como deuda hacia C-14, no bloquea el cierre de C-17.
+> **Nota de realidad (2026-11-16)**: C-17 está completado y archivado (`openspec/changes/archive/2026-11-16-c-17-frontend-caja-os-admin/`) aunque en ese momento C-14 seguía `[ ]`: la dependencia de C-14 (auditoría consultable + exportación 1-clic) quedó como deuda hacia C-14. **Saldada el 2026-11-17**: C-14 se completó y archivó en `openspec/changes/archive/2026-11-17-c-14-auditoria-exportacion/`.
 
 ### Paralelismo por fase
 
@@ -82,7 +82,7 @@ GATE 8: C-14 ✓
   → C-17 frontend-caja-os-admin (solo — cierre + polish visual final)
 ```
 
-> **Nota de realidad (2026-11-16)**: C-17 se completó y archivó pese a que C-14 sigue pendiente; su parte de auditoría consultable / exportación 1-clic queda como deuda hacia C-14.
+> **Nota de realidad (2026-11-16)**: C-17 se completó y archivó pese a que en ese momento C-14 seguía pendiente; esa deuda (auditoría consultable / exportación 1-clic) se saldó con C-14, archivado el 2026-11-17.
 
 ### Camino crítico (9 changes — mínimo irreducible)
 
