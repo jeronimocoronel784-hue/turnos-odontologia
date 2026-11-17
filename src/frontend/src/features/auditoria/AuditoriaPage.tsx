@@ -26,10 +26,23 @@ function formatearFechaHoraART(iso: string): string {
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      // 24 h: mismo criterio que el resto de la app (formatearHora) y evita
+      // ambigüedad en un trail de auditoría.
+      hour12: false,
     }).format(fecha);
   } catch {
     return iso;
   }
+}
+
+function mismosFiltros(a: AuditoriaFiltros, b: AuditoriaFiltros): boolean {
+  return (
+    (a.entidad ?? "") === (b.entidad ?? "") &&
+    (a.actor_id ?? "") === (b.actor_id ?? "") &&
+    (a.accion ?? "") === (b.accion ?? "") &&
+    (a.desde ?? "") === (b.desde ?? "") &&
+    (a.hasta ?? "") === (b.hasta ?? "")
+  );
 }
 
 function descargarBlob(blob: Blob, filename: string) {
@@ -94,6 +107,10 @@ export function AuditoriaPage() {
 
   // Aplicar filtros: resetear paginación
   function aplicarFiltros(nuevos: AuditoriaFiltros) {
+    // El efecto de auto-aplicado corre también en el montaje y con valores
+    // idénticos: sin este guard se vaciaba la tabla y se perdía el cursor de
+    // paginación de la primera página (los eventos no volvían a pedirse).
+    if (mismosFiltros(filtros, nuevos)) return;
     setEventos([]);
     setCursor(null);
     setSiguienteCursor(null);
