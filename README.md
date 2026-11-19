@@ -5,6 +5,11 @@ Argentina y Latinoamérica: agenda multi-profesional con anti-solapamiento,
 reserva online 24/7, historia clínica + odontograma FDI, caja/señas con
 Mercado Pago, obras sociales y recordatorios por WhatsApp.
 
+Video TPI:
+https://youtu.be/yjD1CXylBao?si=S4IiPT4U1NWy52ZY
+
+
+
 Video explicativo:
 https://youtu.be/sK8yQHpTE8E
 
